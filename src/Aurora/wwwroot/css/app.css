@@ -80,7 +80,7 @@
 .soltar{display:flex;align-items:center;gap:16px;margin-top:26px;color:#87857f;font-size:7px;letter-spacing:.28em}
 .soltar i{width:44px;height:1px;background:#4b4f50}
 .rodape-viewport{position:absolute;left:18px;right:18px;bottom:12px;display:flex;justify-content:space-between;gap:16px;color:#777975;font-size:7px}
-.janela-preview{position:absolute;inset:12px;border:1px solid #5a5f62;background:#0d0f10}
+.janela-preview{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:1px solid #5a5f62;background:#0d0f10;overflow:hidden}
 .viewport{position:relative;width:100%;height:100%;overflow:hidden;background:white}
 #preview{width:100%;height:100%;border:0;display:block;background:white}
 .camada-marcacoes{position:absolute;inset:0;pointer-events:none}
@@ -198,3 +198,6 @@
 @keyframes girar{to{transform:rotate(360deg)}}
 body.modo-foco .rail,body.modo-foco .inspetor{display:none}
 body.modo-foco .estacao{grid-template-columns:minmax(0,1fr)}
+
+.moldura-viewport.arrastando{border-color:var(--acento);box-shadow:inset 0 0 0 1px var(--acento)}
+.moldura-viewport.arrastando .vazio{background:#1b1c1c}
