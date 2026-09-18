@@ -16,6 +16,13 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet restore Aurora.sln
       - run: dotnet build Aurora.sln -c Release --no-restore
+      - name: valida javascript
+        shell: bash
+        run: |
+          node --check api/proxy-url.js
+          node --check src/Aurora/wwwroot/aurora-sw.js
+          node --input-type=module --check < src/Aurora/wwwroot/js/app.js
+          node --input-type=module --check < src/Aurora/wwwroot/js/importacao-local.js
       - name: teste rápido
         shell: bash
         run: |
