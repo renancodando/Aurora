@@ -341,3 +341,126 @@ html[data-performance="eco"] .moldura-viewport{
 @media (max-width:520px){
   .centro{grid-template-rows:auto auto minmax(500px,68dvh) auto}
 }
+
+/* estados calculados pelo motor de restrições */
+.topo[data-arranjo="duas-linhas"]{
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-areas:"identidade tempo" "etapas etapas";
+  row-gap:8px;
+  padding-block:10px 0;
+}
+.topo[data-arranjo="duas-linhas"] .identidade{grid-area:identidade}
+.topo[data-arranjo="duas-linhas"] .tempo-local{grid-area:tempo}
+.topo[data-arranjo="duas-linhas"] .etapas{
+  grid-area:etapas;
+  width:100%;
+  justify-content:center;
+  border-top:1px solid var(--linha);
+}
+.topo[data-arranjo="pilha"]{
+  grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"identidade" "tempo" "etapas";
+  gap:8px;
+  padding-block:10px 0;
+}
+.topo[data-arranjo="pilha"] .identidade,
+.topo[data-arranjo="pilha"] .tempo-local{
+  justify-self:center;
+  justify-content:center;
+  flex-wrap:wrap;
+}
+.topo[data-arranjo="pilha"] .etapas{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(86px,1fr));
+  border-top:1px solid var(--linha);
+}
+
+.estacao[data-arranjo="tres-colunas-compactas"]{
+  grid-template-columns:72px minmax(0,1fr) minmax(276px,300px);
+}
+.estacao[data-arranjo="tres-colunas-compactas"] .rail{
+  padding-inline:7px;
+}
+.estacao[data-arranjo="tres-colunas-compactas"] .rail-item{
+  grid-template-columns:1fr;
+  justify-items:center;
+  text-align:center;
+  padding-inline:4px;
+}
+.estacao[data-arranjo="tres-colunas-compactas"] .rail-item b{
+  font-size:8px;
+  overflow-wrap:anywhere;
+}
+.estacao[data-arranjo="pilha"]{
+  grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"rail" "centro" "inspetor";
+}
+.estacao[data-arranjo="pilha"] .rail{
+  grid-area:rail;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+  gap:4px;
+  border-right:0;
+  border-bottom:1px solid var(--linha);
+  padding:8px 12px;
+}
+.estacao[data-arranjo="pilha"] .rail-item{
+  min-height:44px;
+  grid-template-columns:25px 1fr auto;
+  border-left:0;
+  border-bottom:2px solid transparent;
+}
+.estacao[data-arranjo="pilha"] .rail-item.ativo{
+  border-left:0;
+  border-bottom-color:var(--acento);
+}
+.estacao[data-arranjo="pilha"] .centro{grid-area:centro}
+.estacao[data-arranjo="pilha"] .inspetor{
+  grid-area:inspetor;
+  border-left:0;
+  border-top:1px solid var(--linha);
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));
+  overflow:visible;
+}
+.estacao[data-arranjo="pilha"] .inspector-topo,
+.estacao[data-arranjo="pilha"] .abas-inspetor{
+  grid-column:1/-1;
+}
+.estacao[data-arranjo="pilha"] .saida{
+  margin-top:0;
+}
+
+.barra-projeto[data-fluxo="quebrado"]{
+  grid-template-columns:minmax(0,1fr);
+  gap:7px;
+}
+.barra-projeto[data-fluxo="quebrado"]>.rotulo{
+  justify-self:start;
+}
+.barra-visualizacao[data-fluxo="quebrado"]{
+  grid-template-columns:minmax(0,1fr);
+  align-items:stretch;
+  gap:8px;
+  padding-block:7px 10px;
+}
+.barra-visualizacao[data-fluxo="quebrado"]>.rotulo{
+  justify-self:start;
+}
+.barra-visualizacao[data-fluxo="quebrado"] .seletor-dispositivo{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(96px,1fr));
+  width:100%;
+}
+.barra-visualizacao[data-fluxo="quebrado"] .dispositivo{
+  min-width:0;
+}
+.barra-visualizacao[data-fluxo="quebrado"] .resolucao-atual{
+  justify-self:stretch;
+  min-width:0;
+}
+.barra-visualizacao[data-fluxo="quebrado"] .botao-iconico,
+.barra-visualizacao[data-fluxo="quebrado"] .campo-resolucao{
+  justify-self:start;
+}
