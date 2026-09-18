@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "outputDirectory": "src/Aurora/wwwroot"
+  "outputDirectory": "src/Aurora/wwwroot",
+  "functions": {
+    "api/proxy-url.js": {
+      "maxDuration": 10
+    }
+  }
 }
