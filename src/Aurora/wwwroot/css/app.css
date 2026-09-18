@@ -201,3 +201,9 @@ body.modo-foco .estacao{grid-template-columns:minmax(0,1fr)}
 
 .moldura-viewport.arrastando{border-color:var(--acento);box-shadow:inset 0 0 0 1px var(--acento)}
 .moldura-viewport.arrastando .vazio{background:#1b1c1c}
+
+.metrica-modo{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #25292b}
+.metrica-modo b{font-size:8px;font-weight:500;color:#9f9d96}
+.metrica-modo span{font-size:8px;color:var(--acento-forte);font-variant-numeric:tabular-nums}
+.modo-analise button{transition:border-color .16s ease,background .16s ease,color .16s ease}
+.modo-analise button.ativo{background:#211f1b;border-color:var(--acento);color:var(--acento-forte)}
