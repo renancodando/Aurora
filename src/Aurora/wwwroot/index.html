@@ -19,7 +19,7 @@
     <header class="topo">
       <div class="marca" aria-label="Aurora">
         <strong>AURORA</strong>
-        <span>interfaces que respiram</span>
+        <span>LAYOUTS QUE RESPIRAM</span>
       </div>
 
       <nav class="etapas" aria-label="Etapas">
@@ -56,13 +56,13 @@
         <button class="rail-item" data-secao="exportar"><span>⇩</span><b>Exportar</b><small>nova versão</small></button>
         <div class="rail-spacer"></div>
         <button class="rail-item compacto" id="modo-foco"><span>↗</span><b>Modo foco</b><kbd>F2</kbd></button>
-      </aside>
+      </aside><div class="manifesto-lateral">O mesmo<br>conteúdo.<br>Em qualquer<br>horizonte.<i></i></div>
 
       <section class="centro" data-adaptive>
         <div class="barra-projeto">
           <div class="entrada-projeto" id="entrada-projeto">
             <span class="globo">◎</span>
-            <input id="campo-origem" value="Nenhum projeto carregado" readonly aria-label="Projeto atual">
+            <input id="campo-origem" value="https://seudominio.com.br" readonly aria-label="Projeto atual">
           </div>
           <button class="botao-iconico" id="abrir-importacao" title="Abrir projeto">＋</button>
           <div class="seletor-dispositivo" aria-label="Modo de visualização">
@@ -80,7 +80,7 @@
         </div>
 
         <div class="palco" id="palco">
-          <div class="vazio" id="estado-vazio">
+          <div class="vazio" id="estado-vazio" hidden>
             <div class="orbita-vazio" aria-hidden="true"><i></i><i></i><i></i></div>
             <p>AURORA</p>
             <h1>Solte um projeto.<br>Eu encontro onde ele quebra.</h1>
@@ -88,9 +88,9 @@
             <button class="botao-principal" id="importar-primeiro">Abrir projeto</button>
           </div>
 
-          <div class="janela-preview" id="janela-preview" hidden>
+          <div class="janela-preview" id="janela-preview">
             <div class="viewport" id="viewport">
-              <iframe id="preview" title="Projeto em análise" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin allow-downloads"></iframe>
+              <iframe id="preview" src="/demo.html" title="Projeto em análise" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin allow-downloads"></iframe>
               <div id="camada-marcacoes" class="camada-marcacoes" aria-hidden="true"></div>
             </div>
             <div class="alca-resize alca-direita" data-resize="x"></div>
@@ -120,7 +120,7 @@
           </div>
           <div class="trilho-regua">
             <input id="controle-largura" type="range" min="280" max="3440" value="1440" step="1" aria-label="Largura da viewport">
-            <div id="marcas-fratura" class="marcas-fratura"></div>
+            <div id="marcas-fratura" class="marcas-fratura"></div><output id="bolha-largura" class="bolha-largura">1440</output>
           </div>
           <div class="ticks" aria-hidden="true">
             <span style="--x:0">280</span><span style="--x:2.53">360</span><span style="--x:4.17">412</span><span style="--x:15.44">768</span><span style="--x:23.54">1024</span><span style="--x:36.71">1440</span><span style="--x:51.9">1920</span><span style="--x:72.15">2560</span><span style="--x:100">3440</span>
@@ -130,13 +130,13 @@
 
       <aside class="inspetor" id="inspetor" aria-live="polite">
         <section class="bloco diagnostico">
-          <div class="titulo-bloco"><span class="estado ok" id="estado-layout"></span><div><b id="titulo-layout">Aguardando projeto</b><small id="subtitulo-layout">importe um site para começar</small></div></div>
+          <div class="titulo-bloco"><span class="estado ok" id="estado-layout"></span><div><b id="titulo-layout">Layout estável</b><small id="subtitulo-layout">Nenhum problema crítico</small></div></div>
           <div class="medidor">
-            <div class="anel" id="anel-integridade"><b id="integridade">--</b></div>
+            <div class="anel" id="anel-integridade"><b id="integridade">96</b></div>
             <dl>
-              <div><dt>Elementos</dt><dd id="qtd-elementos">0</dd></div>
+              <div><dt>Elementos</dt><dd id="qtd-elementos">112</dd></div>
               <div><dt>Erros</dt><dd id="qtd-erros">0</dd></div>
-              <div><dt>Avisos</dt><dd id="qtd-avisos">0</dd></div>
+              <div><dt>Avisos</dt><dd id="qtd-avisos">2</dd></div>
               <div><dt>Ocultos</dt><dd id="qtd-ocultos">0</dd></div>
             </dl>
           </div>
@@ -145,22 +145,22 @@
         <section class="bloco pontos">
           <div class="cabecalho-bloco"><b>Pontos de atenção</b><span id="contador-pontos">0</span></div>
           <div id="lista-problemas" class="lista-problemas">
-            <p class="sem-dados">Nada analisado ainda.</p>
+            <button class="problema" type="button"><i></i><div><b>Espaçamento excessivo</b><small>.hero__content</small></div><span>›</span></button><button class="problema critico" type="button"><i></i><div><b>Texto pode quebrar</b><small>.descricao</small></div><span>›</span></button>
           </div>
         </section>
 
         <section class="bloco correcoes">
           <div class="cabecalho-bloco"><b>Ajustes em tempo real</b><label class="switch"><input id="auto-ajustes" type="checkbox"><i></i></label></div>
           <div id="lista-correcoes" class="lista-correcoes">
-            <label><input type="checkbox" checked disabled> escala fluida</label>
-            <label><input type="checkbox" checked disabled> espaçamentos adaptativos</label>
-            <label><input type="checkbox" checked disabled> container queries</label>
-            <label><input type="checkbox" checked disabled> menor alteração possível</label>
+            <label><input type="checkbox" checked disabled> Tipografia fluida</label>
+            <label><input type="checkbox" checked disabled> Espaçamentos adaptativos</label>
+            <label><input type="checkbox" checked disabled> Imagens responsivas</label>
+            <label><input type="checkbox" checked disabled> Quebras inteligentes</label>
           </div>
         </section>
 
         <section class="bloco saida">
-          <button class="botao-principal" id="gerar-versao" disabled>Gerar nova versão <span>→</span></button>
+          <button class="botao-principal" id="gerar-versao">Gerar nova versão <span>→</span></button>
           <div class="garantias"><span>◉ original preservado</span><span>◌ <b id="conteudo-removido">0</b> conteúdo removido</span></div>
         </section>
       </aside>
