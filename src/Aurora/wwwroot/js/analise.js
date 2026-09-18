@@ -49,7 +49,9 @@ export class AuroraAnalise {
       const texto=(el.childNodes.length===1 && el.firstChild?.nodeType===3 ? el.textContent : '').trim();
       const foraX=r.right>largura+1 || r.left<-1;
       if(foraX && cs.position!=='fixed' && cs.position!=='sticky'){
-        problemas.push({tipo:'overflow',titulo:'Elemento fora da viewport',detalhe:`${Math.ceil(Math.max(0,r.right-largura, -r.left))} px além do limite`,seletor:sel,severidade:'critico',rect:retangulo(r),dados:{largura:r.width,viewport:largura}});
+        const pai=el.parentElement;
+        const pcs=pai?win.getComputedStyle(pai):null;
+        problemas.push({tipo:'overflow',titulo:'Elemento fora da viewport',detalhe:`${Math.ceil(Math.max(0,r.right-largura, -r.left))} px além do limite`,seletor:sel,severidade:'critico',rect:retangulo(r),dados:{largura:r.width,viewport:largura},contexto:{parentSelector:pai?seletor(pai):'',parentDisplay:pcs?.display||'',fontSize:parseFloat(cs.fontSize)||0,paddingInline:(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0)}});
       }
 
       const ox=['hidden','clip'].includes(cs.overflowX); const oy=['hidden','clip'].includes(cs.overflowY);

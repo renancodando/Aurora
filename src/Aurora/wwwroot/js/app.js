@@ -185,7 +185,7 @@ function renderizarAnalise(r,marcar=true){
   if(marcar)desenharMarcacoes(r.problemas);
 
   if($('#auto-ajustes').checked){
-    estado.cssCorrecao=gerarCorrecoes(r.problemas);
+    estado.cssCorrecao=gerarCorrecoes(r.problemas,{largura:estado.largura,fraturas:estado.fraturas});
     aplicarNoPreview(preview,estado.cssCorrecao);
   }
 }
@@ -239,12 +239,35 @@ async function persistirCorrecoes(){
   if(!r.ok) throw new Error((await r.json()).erro || 'Não consegui salvar as correções.');
 }
 
+async function validarCorrecoesCompleto(){
+  if(!$('#auto-ajustes').checked || !estado.cssCorrecao) return {aceita:true};
+  const largura=estado.largura,altura=estado.altura;
+  status('validando correções','comparando a linha responsiva inteira');
+  limparPreview(preview);
+  const base=await analisador.varrer({definirViewport:aplicarViewport,larguraAtual:largura,alturaAtual:altura});
+  aplicarNoPreview(preview,estado.cssCorrecao);
+  const corrigido=await analisador.varrer({definirViewport:aplicarViewport,larguraAtual:largura,alturaAtual:altura});
+  const somar=resultado=>resultado.estados.reduce((acc,x)=>({problemas:acc.problemas+x.problemas,criticos:acc.criticos+x.criticos}),{problemas:0,criticos:0});
+  const antes=somar(base),depois=somar(corrigido);
+  const aceita=depois.criticos<antes.criticos || (depois.criticos===antes.criticos && depois.problemas<=antes.problemas);
+  if(!aceita){
+    limparPreview(preview);estado.cssCorrecao='';$('#auto-ajustes').checked=false;
+    await aplicarViewport(largura,altura,true);executarAnalise(true);
+    return {aceita:false,antes,depois};
+  }
+  estado.fraturas=corrigido.fraturas;renderizarFraturas();
+  await aplicarViewport(largura,altura,true);executarAnalise(true);
+  return {aceita:true,antes,depois};
+}
+
 async function gerarVersao(){
   if(!estado.projeto)return;
   const btn=$('#gerar-versao');btn.disabled=true;status('gerando nova versão','original preservado');
   try{
+    const validacao=await validarCorrecoesCompleto();
+    if(!validacao.aceita) throw new Error(`Correção rejeitada: ${validacao.antes.criticos} → ${validacao.depois.criticos} rupturas críticas.`);
     await persistirCorrecoes();
-    const relatorio={projeto:estado.projeto,analise:estado.analise,fraturas:estado.fraturas,historico:estado.historico,correcoesAtivas:$('#auto-ajustes').checked,geradoEm:new Date().toISOString()};
+    const relatorio={projeto:estado.projeto,analise:estado.analise,fraturas:estado.fraturas,historico:estado.historico,correcoesAtivas:$('#auto-ajustes').checked,validacao,geradoEm:new Date().toISOString()};
     await fetch(`/api/projetos/${estado.projeto.id}/relatorio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:relatorio})});
     const a=document.createElement('a');a.href=`/api/projetos/${estado.projeto.id}/exportar`;a.download='';document.body.appendChild(a);a.click();a.remove();
     toast('Nova versão gerada','ZIP + relatório, sem alterar o original');
@@ -256,7 +279,7 @@ function aplicarAutoAjustes(){
   if(!estado.projeto)return;
   if($('#auto-ajustes').checked){
     const antes=analisador.analisarAtual();
-    const css=gerarCorrecoes(antes.problemas);estado.cssCorrecao=css;aplicarNoPreview(preview,css);
+    const css=gerarCorrecoes(antes.problemas,{largura:estado.largura,fraturas:estado.fraturas});estado.cssCorrecao=css;aplicarNoPreview(preview,css);
     setTimeout(()=>{
       const depois=analisador.analisarAtual();
       if(depois.problemas.length>antes.problemas.length){

@@ -1,57 +1,81 @@
 # AURORA
 
-Laboratório de responsividade adaptativa sem IA.
-
-O AURORA abre uma cópia do projeto, mede a interface em várias larguras, encontra o ponto onde o layout começa a quebrar e tenta corrigir com a menor mudança possível. O original não é alterado.
+Laboratório de responsividade adaptativa determinística. O AURORA procura onde uma interface quebra, mede a causa, tenta a menor correção possível, valida de novo e exporta uma nova cópia sem alterar o projeto original.
 
 ## O que já funciona
 
-- importar ZIP
-- importar uma pasta pelo navegador
-- importar uma URL e analisar a cópia local da página
-- importar repositório público do GitHub
-- preview com largura e altura livres
-- régua de 280 px até 3440 px
-- varredura automática e busca de limites naturais
-- overflow horizontal
-- texto cortado
-- imagem deformada
-- áreas de toque pequenas
-- larguras rígidas maiores que a viewport
-- marcação visual do elemento com problema
-- correções reversíveis dentro do preview
-- rollback se a correção criar mais problemas
-- exportar um novo ZIP sem tocar no original
-- relatório JSON junto do projeto corrigido
-- céu em tempo real com Sol, Lua, estrelas e fase lunar
-- clima real pela Open-Meteo, sem chave no modo gratuito
-- localização automática ou busca manual de cidade
-- tempo do céu em 1x, 60x e 600x
+- ZIP, pasta, URL e repositório público do GitHub
+- cópia `original` separada da cópia `trabalho`
+- preview do projeto em uma única área de trabalho
+- viewport contínua de 280px até 3440px
+- resize manual pelas bordas do preview
+- análise de overflow, texto cortado, imagens deformadas, área de toque e larguras rígidas
+- busca automática dos limites naturais onde o comportamento muda
+- correções sem IA com propriedades intrínsecas, medidas fluidas, media queries no limite natural e container queries quando a estrutura permite
+- preservação da ordem do DOM e do conteúdo
+- rollback quando um ajuste cria mais problemas no estado atual
+- validação da linha responsiva completa antes de exportar
+- `aurora-responsive.css` separado do CSS original
+- relatório JSON junto da versão gerada
+- exportação para um novo ZIP
+- original preservado
 
-## Responsividade do próprio AURORA
+## Céu AURORA
 
-A interface usa layout intrínseco, Grid, Flex, `clamp()`, container queries, altura, orientação, tipo de ponteiro, área segura e `ResizeObserver`. Em telas menores os painéis mudam de forma sem criar uma segunda tela.
+O fundo não é uma foto. Ele é renderizado em tempo real.
 
-## Abrir
+- WebGL2 para atmosfera e nuvens procedurais
+- Astronomy Engine para Sol, Lua e fase lunar, com fallback local
+- Open-Meteo para nuvens, vento, precipitação, visibilidade e busca de cidades
+- catálogo Yale Bright Star Catalog quando disponível, com fallback procedural local
+- estrelas mudam de posição pelo tempo sideral e pela latitude/longitude
+- Lua só aparece quando está acima do horizonte
+- transição contínua entre dia, crepúsculo e noite
+- tempo real, 60× e 600×
+- localização do navegador ou cidade escolhida manualmente
 
-Requer .NET 10.
+## Tecnologia
 
-1. Abra `Aurora.sln` no Visual Studio.
-2. Pressione F5 ou Ctrl+F5.
-3. O projeto abre em `http://localhost:5187`.
+- .NET 10 / ASP.NET Core
+- HTML, CSS e JavaScript puro
+- WebGL2 + Canvas 2D
+- CSS Grid e Flexbox
+- `min()`, `max()`, `clamp()`, propriedades lógicas e Container Queries
+- ResizeObserver e medições reais do DOM
+- Open-Meteo
+- Astronomy Engine
 
-Também dá para dar dois cliques em `ABRIR_NO_VISUAL_STUDIO.cmd`.
+## Abrir no Visual Studio
 
-## Céu
+Abra `Aurora.sln` ou execute `ABRIR_NO_VISUAL_STUDIO.cmd`.
 
-Astronomia: Astronomy Engine 2.1.19.
+O perfil padrão abre:
 
-Clima e geocodificação: Open-Meteo.
+```text
+http://localhost:5187
+```
 
-Catálogo estelar principal: Yale Bright Star Catalog em JSON. Se ele não estiver disponível, o AURORA usa um campo estelar local de fallback e continua funcionando.
+## Como o motor trabalha
 
-A Open-Meteo não exige chave para protótipo e uso não comercial dentro dos limites deles. Para uso comercial, a configuração pode ser trocada depois sem refazer o céu.
+```text
+medir
+→ encontrar a ruptura
+→ tentar a menor correção
+→ usar o limite natural do próprio layout
+→ usar container query quando o componente precisa reagir ao espaço dele
+→ reorganizar só quando não dá para manter a composição
+→ retestar
+→ rejeitar se piorar
+→ validar a linha responsiva inteira
+→ exportar uma cópia
+```
+
+O AURORA não remove conteúdo para fazer a interface caber.
+
+## Open-Meteo
+
+Durante o desenvolvimento o endpoint público funciona sem chave. O clima é atualizado a cada 15 minutos. Sol, Lua, fase lunar e movimento das estrelas continuam com cálculo local quando a meteorologia estiver indisponível.
 
 ## Importante
 
-URL externa é capturada para uma cópia local. Sites muito dependentes de autenticação, service workers ou APIs bloqueadas por CORS podem não funcionar exatamente como no domínio original. Para análise completa, prefira ZIP, pasta ou GitHub.
+Use o laboratório com projetos que você pode executar e analisar. O conteúdo importado roda localmente dentro do preview para que o AURORA consiga medir o DOM.
