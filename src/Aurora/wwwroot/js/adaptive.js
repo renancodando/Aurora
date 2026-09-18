@@ -34,6 +34,56 @@ function perfilPerformance(){
   return 'equilibrado';
 }
 
+function larguraConteudo(el){
+  if(!el)return 0;
+  const cs=getComputedStyle(el);
+  const margem=(parseFloat(cs.marginLeft)||0)+(parseFloat(cs.marginRight)||0);
+  return Math.ceil(Math.max(el.scrollWidth,el.getBoundingClientRect().width)+margem);
+}
+
+function aplicarEstrutura(){
+  const topo=document.querySelector('.topo');
+  if(topo){
+    const identidade=topo.querySelector('.identidade');
+    const etapas=topo.querySelector('.etapas');
+    const tempo=topo.querySelector('.tempo-local');
+    const largura=topo.clientWidth;
+    const necessario=larguraConteudo(identidade)+larguraConteudo(etapas)+larguraConteudo(tempo)+56;
+    const linhaPrincipal=larguraConteudo(identidade)+larguraConteudo(tempo)+32;
+    topo.dataset.arranjo=necessario<=largura?'linha':linhaPrincipal<=largura?'duas-linhas':'pilha';
+  }
+
+  const estacao=document.querySelector('.estacao');
+  if(estacao){
+    const largura=estacao.clientWidth;
+    const rail=document.querySelector('.rail');
+    const inspetor=document.querySelector('.inspetor');
+    const itemRail=Math.max(0,...[...document.querySelectorAll('.rail-item')].map(x=>Math.min(188,Math.max(72,x.scrollWidth))));
+    const railNatural=Math.max(72,Math.min(188,itemRail+12));
+    const inspetorNatural=Math.max(276,Math.min(340,larguraConteudo(inspetor)||300));
+    const centroMinimo=620;
+    const folga=32;
+    const tres=railNatural+inspetorNatural+centroMinimo+folga;
+    const compacto=72+Math.min(inspetorNatural,300)+centroMinimo+24;
+    estacao.dataset.arranjo=largura>=tres?'tres-colunas':largura>=compacto?'tres-colunas-compactas':'pilha';
+  }
+
+  const barra=document.querySelector('.barra-visualizacao');
+  if(barra){
+    const largura=barra.clientWidth;
+    const filhos=[...barra.children];
+    const necessario=filhos.reduce((s,x)=>s+Math.min(larguraConteudo(x),360),0)+Math.max(0,filhos.length-1)*10+40;
+    barra.dataset.fluxo=necessario<=largura?'linha':'quebrado';
+  }
+
+  const projeto=document.querySelector('.barra-projeto');
+  if(projeto){
+    const largura=projeto.clientWidth;
+    const necessario=[...projeto.children].reduce((s,x)=>s+Math.min(larguraConteudo(x),520),0)+30;
+    projeto.dataset.fluxo=necessario<=largura?'linha':'quebrado';
+  }
+}
+
 function aplicarContexto(el){
   const r=el.getBoundingClientRect();
   const w=Math.max(0,r.width);
@@ -54,6 +104,7 @@ function aplicarContexto(el){
   el.dataset.largura=classeLargura(w);
   el.dataset.altura=classeAltura(h);
   el.dataset.formato=classeFormato(w,h);
+  aplicarEstrutura();
 }
 
 export function iniciarAdaptiveEngine(){
@@ -108,6 +159,7 @@ export function iniciarAdaptiveEngine(){
   addEventListener('resize',atualizarAmbiente,{passive:true});
   addEventListener('orientationchange',atualizarAmbiente,{passive:true});
   atualizarAmbiente();
+  requestAnimationFrame(aplicarEstrutura);
 
   return ()=>{
     ro.disconnect();
