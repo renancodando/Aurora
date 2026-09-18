@@ -313,7 +313,7 @@ function configurarImportacao(){
   area?.addEventListener('dragover',e=>{e.preventDefault();area.classList.add('arrastando');});
   area?.addEventListener('dragleave',()=>area.classList.remove('arrastando'));
   area?.addEventListener('drop',e=>{e.preventDefault();area.classList.remove('arrastando');const arquivo=[...e.dataTransfer.files].find(x=>x.name.toLowerCase().endsWith('.zip'));if(!arquivo)return toast('Use um ZIP para arrastar e soltar','pastas podem ser abertas pelo botão Pasta');const fd=new FormData();fd.append('arquivo',arquivo);importar('/api/projetos/zip',fd);});
-  $$('[data-importacao]').forEach(b=>b.addEventListener('click',()=>{estado.importacao=b.dataset.importacao;$('#importacao-texto').hidden=false;$('#valor-importacao').placeholder=estado.importacao==='github'?'https://github.com/usuario/repositorio':'https://seusite.com';$('#valor-importacao').focus();}));
+  $('[data-importacao]').forEach(b=>b.addEventListener('click',()=>{estado.importacao=b.dataset.importacao;if(!dialog.open)dialog.showModal();$('#importacao-texto').hidden=false;$('#valor-importacao').placeholder=estado.importacao==='github'?'https://github.com/usuario/repositorio':'https://seusite.com';setTimeout(()=>$('#valor-importacao').focus(),30);}));
   $('#confirmar-importacao').addEventListener('click',()=>{const valor=$('#valor-importacao').value.trim();if(!valor)return;importar(`/api/projetos/${estado.importacao}`,{url:valor},'json');});
 }
 
