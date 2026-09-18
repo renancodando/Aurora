@@ -10,7 +10,7 @@ function validar(valor){
   return url;
 }
 
-export default async function handler(req,res){
+module.exports=async function handler(req,res){
   if(req.method!=='GET')return res.status(405).json({erro:'método não permitido'});
   try{
     let atual=validar(String(req.query.url||''));
