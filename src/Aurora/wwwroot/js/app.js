@@ -11,9 +11,9 @@ const $$ = s => [...document.querySelectorAll(s)];
 const limitar=(n,a,b)=>Math.max(a,Math.min(b,n));
 
 const estado = {
-  projeto:{id:null,nome:'seudominio.com.br',entrada:'demo',quantidadeArquivos:1,urlPreview:'/demo.html',demo:true},
-  largura:1440,
-  altura:900,
+  projeto:null,
+  largura:1200,
+  altura:800,
   zoom:1,
   analise:null,
   fraturas:[],
@@ -88,13 +88,15 @@ function dimensoesDisponiveis(){
 }
 
 async function aplicarViewport(largura,altura, silencioso=false){
-  estado.largura=limitar(Math.round(Number(largura)||1440),280,3440);
-  estado.altura=limitar(Math.round(Number(altura)||900),320,2160);
+  estado.largura=limitar(Math.round(Number(largura)||1200),280,3440);
+  estado.altura=limitar(Math.round(Number(altura)||800),320,2160);
   $('#controle-largura').value=estado.largura;
   $('#largura-manual').value=estado.largura;
   $('#altura-manual').value=estado.altura;
   const bolha=$('#bolha-largura');
   if(bolha){bolha.textContent=estado.largura;bolha.style.left=`${(estado.largura-280)/(3440-280)*100}%`;}
+  const resolucao=$('#resolucao-display');
+  if(resolucao) resolucao.textContent=`${estado.largura} × ${estado.altura}`;
   if($('#janela-preview').hidden) return;
 
   const disp=dimensoesDisponiveis();
@@ -141,14 +143,14 @@ async function carregarProjeto(manifesto){
   $('#auto-ajustes').checked=false;
   preview.src=`${manifesto.urlPreview}${manifesto.urlPreview.includes('?')?'&':'?'}aurora=${Date.now()}`;
   status('abrindo projeto',`${manifesto.quantidadeArquivos} arquivos`);
-  await aplicarViewport(1440,900,true);
+  await aplicarViewport(1200,800,true);
 }
 
 preview.addEventListener('load',async()=>{
   if(!estado.projeto)return;
   await esperar(180);
   await aplicarViewport(estado.largura,estado.altura,true);
-  if(!estado.projeto.demo) executarAnalise(true);
+  executarAnalise(true);
   status('', '', false);
 });
 
@@ -171,6 +173,10 @@ function renderizarAnalise(r,marcar=true){
   $('#qtd-avisos').textContent=r.avisos;
   $('#qtd-ocultos').textContent=r.ocultos;
   $('#contador-pontos').textContent=r.problemas.length;
+  $('#anel-integridade').style.borderColor=r.criticos?'var(--erro)':r.avisos?'var(--aviso)':'var(--sucesso)';
+  const saude=$('.saude-texto');
+  if(saude){saude.querySelector('span').textContent=r.criticos?'Há fraturas no layout':r.avisos?'Layout estável com atenção':'Layout estável';saude.querySelector('small').textContent=`${r.elementos} elementos analisados · ${r.criticos} críticos · ${r.avisos} avisos`;}
+  const metricas=$('.medidor dl'); if(metricas) metricas.hidden=false;
   const titulo=$('#titulo-layout'), sub=$('#subtitulo-layout'), bolinha=$('#estado-layout');
   bolinha.className='estado '+(r.criticos?'erro':r.avisos?'aviso':'ok');
   titulo.textContent=r.criticos?'Layout com fraturas':r.avisos?'Layout estável com atenção':'Layout estável';
@@ -234,7 +240,7 @@ function renderizarFraturas(){
 }
 
 async function persistirCorrecoes(){
-  if(!estado.projeto || estado.projeto.demo)return;
+  if(!estado.projeto)return;
   const css=$('#auto-ajustes').checked?estado.cssCorrecao:'';
   const resumo={largura:estado.largura,altura:estado.altura,problemasAntes:estado.analise?.problemas?.length||0,fraturas:estado.fraturas};
   const r=await fetch(`/api/projetos/${estado.projeto.id}/correcoes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({css,resumo})});
@@ -264,7 +270,6 @@ async function validarCorrecoesCompleto(){
 
 async function gerarVersao(){
   if(!estado.projeto)return;
-  if(estado.projeto.demo){$('#dialog-importar').showModal();return;}
   const btn=$('#gerar-versao');btn.disabled=true;status('gerando nova versão','original preservado');
   try{
     const validacao=await validarCorrecoesCompleto();
@@ -295,13 +300,19 @@ function aplicarAutoAjustes(){
 function configurarImportacao(){
   const dialog=$('#dialog-importar');
   const abrir=()=>dialog.showModal();
-  $('#abrir-importacao').addEventListener('click',abrir);$('#importar-primeiro').addEventListener('click',abrir);
-  $('#input-zip').addEventListener('change',e=>{const arq=e.target.files[0];if(!arq)return;const fd=new FormData();fd.append('arquivo',arq);importar('/api/projetos/zip',fd);e.target.value='';});
-  $('#input-pasta').addEventListener('change',e=>{
-    const arquivos=[...e.target.files];if(!arquivos.length)return;const fd=new FormData();
-    for(const arq of arquivos){fd.append('arquivos',arq,arq.name);fd.append('caminhos',arq.webkitRelativePath||arq.name);}
-    importar('/api/projetos/pasta',fd);e.target.value='';
-  });
+  $('#abrir-importacao').addEventListener('click',abrir);
+
+  const importarZip=e=>{const arq=e.target.files?.[0];if(!arq)return;const fd=new FormData();fd.append('arquivo',arq);importar('/api/projetos/zip',fd);e.target.value='';};
+  const importarPasta=e=>{const arquivos=[...e.target.files];if(!arquivos.length)return;const fd=new FormData();for(const arq of arquivos){fd.append('arquivos',arq,arq.name);fd.append('caminhos',arq.webkitRelativePath||arq.name);}importar('/api/projetos/pasta',fd);e.target.value='';};
+  $('#input-zip')?.addEventListener('change',importarZip);
+  $('#input-zip-dialog')?.addEventListener('change',importarZip);
+  $('#input-pasta')?.addEventListener('change',importarPasta);
+  $('#input-pasta-dialog')?.addEventListener('change',importarPasta);
+
+  const area=$('.moldura-viewport');
+  area?.addEventListener('dragover',e=>{e.preventDefault();area.classList.add('arrastando');});
+  area?.addEventListener('dragleave',()=>area.classList.remove('arrastando'));
+  area?.addEventListener('drop',e=>{e.preventDefault();area.classList.remove('arrastando');const arquivo=[...e.dataTransfer.files].find(x=>x.name.toLowerCase().endsWith('.zip'));if(!arquivo)return toast('Use um ZIP para arrastar e soltar','pastas podem ser abertas pelo botão Pasta');const fd=new FormData();fd.append('arquivo',arquivo);importar('/api/projetos/zip',fd);});
   $$('[data-importacao]').forEach(b=>b.addEventListener('click',()=>{estado.importacao=b.dataset.importacao;$('#importacao-texto').hidden=false;$('#valor-importacao').placeholder=estado.importacao==='github'?'https://github.com/usuario/repositorio':'https://seusite.com';$('#valor-importacao').focus();}));
   $('#confirmar-importacao').addEventListener('click',()=>{const valor=$('#valor-importacao').value.trim();if(!valor)return;importar(`/api/projetos/${estado.importacao}`,{url:valor},'json');});
 }
@@ -334,7 +345,7 @@ function configurarViewport(){
   $('#zoom-preview').addEventListener('change',e=>{estado.zoom=Number(e.target.value);aplicarViewport(estado.largura,estado.altura,true);});
   $$('[data-device]').forEach(b=>b.addEventListener('click',()=>{
     $$('[data-device]').forEach(x=>x.classList.remove('ativo'));b.classList.add('ativo');
-    const d=b.dataset.device;const mapa={desktop:[1440,900],tablet:[768,1024],mobile:[390,844]};aplicarViewport(...mapa[d]);
+    const d=b.dataset.device;const mapa={desktop:[1200,800],tablet:[768,1024],mobile:[390,844]};aplicarViewport(...mapa[d]);
   }));
   $('#recarregar-preview').addEventListener('click',()=>{if(preview.src)preview.src=preview.src.split('#')[0];});
   $('#tela-cheia').addEventListener('click',()=>{const el=$('#centro')||$('.centro');if(!document.fullscreenElement)el?.requestFullscreen?.();else document.exitFullscreen?.();});
@@ -381,5 +392,5 @@ function mostrarDesempenho(){
 
 configurarImportacao();configurarLocalizacao();configurarViewport();configurarNavegacao();
 atualizarLocalCabecalho();
-$('#gerar-versao').disabled=false;
-setTimeout(()=>aplicarViewport(1440,900,true),120);
+$('#gerar-versao').disabled=true;
+setTimeout(()=>aplicarViewport(1200,800,true),120);
