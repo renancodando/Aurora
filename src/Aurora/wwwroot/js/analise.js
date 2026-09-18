@@ -1,124 +1,386 @@
-const IGNORAR = new Set(['HTML','HEAD','META','LINK','SCRIPT','STYLE','TITLE','BASE','NOSCRIPT','SOURCE','BR']);
+const IGNORAR=new Set(['HTML','HEAD','META','LINK','SCRIPT','STYLE','TITLE','BASE','NOSCRIPT','SOURCE','BR','TEMPLATE']);
 
-function visivel(el, cs, r) {
-  return !IGNORAR.has(el.tagName) && cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || 1) > .01 && r.width > .5 && r.height > .5;
+function visivel(el,cs,r){
+  return !IGNORAR.has(el.tagName)&&cs.display!=='none'&&cs.visibility!=='hidden'&&Number(cs.opacity||1)>.01&&r.width>.5&&r.height>.5;
 }
 
-function seletor(el) {
-  if (!el || el.nodeType !== 1) return '';
-  if (el.id) return `#${CSS.escape(el.id)}`;
+function seletor(el){
+  if(!el||el.nodeType!==1)return '';
+  if(el.id)return '#'+CSS.escape(el.id);
   const partes=[];
   let atual=el;
-  while(atual && atual.tagName && atual.tagName !== 'HTML' && partes.length<5){
+  while(atual&&atual.tagName&&atual.tagName!=='HTML'&&partes.length<5){
     let p=atual.tagName.toLowerCase();
     const classes=[...atual.classList].filter(c=>!/^aurora-/.test(c)).slice(0,2);
-    if(classes.length) p += '.'+classes.map(CSS.escape).join('.');
+    if(classes.length)p+='.'+classes.map(CSS.escape).join('.');
     else if(atual.parentElement){
       const iguais=[...atual.parentElement.children].filter(x=>x.tagName===atual.tagName);
-      if(iguais.length>1) p += `:nth-of-type(${iguais.indexOf(atual)+1})`;
+      if(iguais.length>1)p+=`:nth-of-type(${iguais.indexOf(atual)+1})`;
     }
-    partes.unshift(p); atual=atual.parentElement;
+    partes.unshift(p);
+    atual=atual.parentElement;
   }
   return partes.join(' > ');
 }
 
-function retangulo(r){return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};}
+function retangulo(r){
+  return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};
+}
 
-export class AuroraAnalise {
-  constructor(iframe){ this.iframe=iframe; this.ultimo=null; }
+function nomeAcessivel(el,doc){
+  const aria=(el.getAttribute('aria-label')||'').trim();
+  if(aria)return aria;
+  const labelled=el.getAttribute('aria-labelledby');
+  if(labelled){
+    const texto=labelled.split(/\s+/).map(id=>doc.getElementById(id)?.textContent||'').join(' ').trim();
+    if(texto)return texto;
+  }
+  if(el.id){
+    try{
+      const label=doc.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      if(label?.textContent.trim())return label.textContent.trim();
+    }catch{}
+  }
+  const pai=el.closest('label');
+  if(pai?.textContent.trim())return pai.textContent.trim();
+  const texto=(el.textContent||'').trim();
+  if(texto)return texto;
+  return (el.getAttribute('title')||el.getAttribute('alt')||el.getAttribute('placeholder')||'').trim();
+}
+
+function timingNavegacao(win){
+  try{
+    const nav=win.performance.getEntriesByType('navigation')[0];
+    if(!nav)return null;
+    return {
+      dom:Math.round(nav.domContentLoadedEventEnd||0),
+      carga:Math.round(nav.loadEventEnd||0),
+      resposta:Math.round((nav.responseEnd||0)-(nav.requestStart||0))
+    };
+  }catch{return null;}
+}
+
+export class AuroraAnalise{
+  constructor(iframe){this.iframe=iframe;this.ultimo=null;}
 
   documento(){
-    try { return this.iframe.contentDocument; } catch { return null; }
+    try{return this.iframe.contentDocument;}catch{return null;}
   }
 
   analisarAtual({marcar=true}={}){
     const doc=this.documento();
-    if(!doc?.documentElement) throw new Error('O conteúdo não está acessível para análise.');
+    if(!doc?.documentElement)throw new Error('O conteúdo não está acessível para análise.');
     const win=this.iframe.contentWindow;
-    const largura=win.innerWidth || this.iframe.clientWidth;
-    const altura=win.innerHeight || this.iframe.clientHeight;
+    const largura=win.innerWidth||this.iframe.clientWidth;
+    const altura=win.innerHeight||this.iframe.clientHeight;
     const problemas=[];
     const elementos=[...doc.querySelectorAll('body *')];
-    let visiveis=0, ocultos=0;
+
+    let visiveis=0;
+    let ocultos=0;
+    let imagens=0;
+    let animacoes=0;
+    let efeitosPesados=0;
+    let fixos=0;
+    const headings=[];
 
     for(const el of elementos){
-      const cs=win.getComputedStyle(el); const r=el.getBoundingClientRect();
-      if(!visivel(el,cs,r)){ if(cs.display==='none' || cs.visibility==='hidden') ocultos++; continue; }
+      const cs=win.getComputedStyle(el);
+      const r=el.getBoundingClientRect();
+
+      if(/^H[1-6]$/.test(el.tagName)&&visivel(el,cs,r))headings.push(Number(el.tagName[1]));
+
+      if(!visivel(el,cs,r)){
+        if(cs.display==='none'||cs.visibility==='hidden')ocultos++;
+        continue;
+      }
+
       visiveis++;
       const sel=seletor(el);
-      const texto=(el.childNodes.length===1 && el.firstChild?.nodeType===3 ? el.textContent : '').trim();
-      const foraX=r.right>largura+1 || r.left<-1;
-      if(foraX && cs.position!=='fixed' && cs.position!=='sticky'){
+      const texto=(el.childNodes.length===1&&el.firstChild?.nodeType===3?el.textContent:'').trim();
+      const foraX=r.right>largura+1||r.left<-1;
+
+      if(cs.position==='fixed'||cs.position==='sticky')fixos++;
+      if(cs.animationName&&cs.animationName!=='none')animacoes++;
+      if((cs.filter&&cs.filter!=='none')||(cs.backdropFilter&&cs.backdropFilter!=='none')||(cs.boxShadow&&cs.boxShadow!=='none'))efeitosPesados++;
+
+      if(foraX&&cs.position!=='fixed'&&cs.position!=='sticky'){
         const pai=el.parentElement;
         const pcs=pai?win.getComputedStyle(pai):null;
-        problemas.push({tipo:'overflow',titulo:'Elemento fora da viewport',detalhe:`${Math.ceil(Math.max(0,r.right-largura, -r.left))} px além do limite`,seletor:sel,severidade:'critico',rect:retangulo(r),dados:{largura:r.width,viewport:largura},contexto:{parentSelector:pai?seletor(pai):'',parentDisplay:pcs?.display||'',fontSize:parseFloat(cs.fontSize)||0,paddingInline:(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0)}});
+        problemas.push({
+          tipo:'overflow',
+          grupo:'responsividade',
+          titulo:'Elemento fora da viewport',
+          detalhe:`${Math.ceil(Math.max(0,r.right-largura,-r.left))} px além do limite`,
+          seletor:sel,
+          severidade:'critico',
+          rect:retangulo(r),
+          dados:{largura:r.width,viewport:largura},
+          contexto:{
+            parentSelector:pai?seletor(pai):'',
+            parentDisplay:pcs?.display||'',
+            fontSize:parseFloat(cs.fontSize)||0,
+            paddingInline:(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0)
+          }
+        });
       }
 
-      const ox=['hidden','clip'].includes(cs.overflowX); const oy=['hidden','clip'].includes(cs.overflowY);
-      if(texto.length>3 && ((ox && el.scrollWidth>el.clientWidth+2)||(oy && el.scrollHeight>el.clientHeight+2))){
-        problemas.push({tipo:'texto',titulo:'Texto pode estar cortado',detalhe:sel,seletor:sel,severidade:'critico',rect:retangulo(r),dados:{scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight}});
+      const ox=['hidden','clip'].includes(cs.overflowX);
+      const oy=['hidden','clip'].includes(cs.overflowY);
+      if(texto.length>3&&((ox&&el.scrollWidth>el.clientWidth+2)||(oy&&el.scrollHeight>el.clientHeight+2))){
+        problemas.push({
+          tipo:'texto',
+          grupo:'responsividade',
+          titulo:'Texto pode estar cortado',
+          detalhe:sel,
+          seletor:sel,
+          severidade:'critico',
+          rect:retangulo(r),
+          dados:{scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight}
+        });
       }
 
-      if(el instanceof win.HTMLImageElement && el.naturalWidth && el.naturalHeight){
-        const natural=el.naturalWidth/el.naturalHeight, atual=r.width/r.height;
-        if(Math.abs(natural-atual)/natural>.18 && cs.objectFit==='fill'){
-          problemas.push({tipo:'imagem',titulo:'Imagem deformada',detalhe:sel,seletor:sel,severidade:'aviso',rect:retangulo(r),dados:{natural,atual}});
+      if(el instanceof win.HTMLImageElement){
+        imagens++;
+        if(!el.hasAttribute('alt')){
+          problemas.push({
+            tipo:'alt',
+            grupo:'acessibilidade',
+            titulo:'Imagem sem texto alternativo',
+            detalhe:sel,
+            seletor:sel,
+            severidade:'aviso',
+            rect:retangulo(r),
+            dados:{}
+          });
+        }
+
+        if(el.naturalWidth&&el.naturalHeight&&r.width>0&&r.height>0){
+          const natural=el.naturalWidth/el.naturalHeight;
+          const atual=r.width/r.height;
+          if(Math.abs(natural-atual)/natural>.18&&cs.objectFit==='fill'){
+            problemas.push({
+              tipo:'imagem',
+              grupo:'responsividade',
+              titulo:'Imagem deformada',
+              detalhe:sel,
+              seletor:sel,
+              severidade:'aviso',
+              rect:retangulo(r),
+              dados:{natural,atual}
+            });
+          }
+
+          const fatorPixels=(el.naturalWidth*el.naturalHeight)/Math.max(1,r.width*r.height);
+          if(fatorPixels>4&&el.naturalWidth>1000&&r.width>80){
+            problemas.push({
+              tipo:'performance-imagem',
+              grupo:'desempenho',
+              titulo:'Imagem maior que o necessário',
+              detalhe:`${el.naturalWidth}×${el.naturalHeight} para ~${Math.round(r.width)}×${Math.round(r.height)}`,
+              seletor:sel,
+              severidade:'aviso',
+              rect:retangulo(r),
+              dados:{fatorPixels,naturalWidth:el.naturalWidth,naturalHeight:el.naturalHeight}
+            });
+          }
         }
       }
 
-      const clicavel=el.matches('button,a,input,select,textarea,[role="button"],[tabindex]');
-      if(clicavel && (r.width<40 || r.height<40) && r.width>5 && r.height>5){
-        problemas.push({tipo:'toque',titulo:'Área de toque pequena',detalhe:`${Math.round(r.width)} × ${Math.round(r.height)} px`,seletor:sel,severidade:'aviso',rect:retangulo(r),dados:{largura:r.width,altura:r.height}});
+      const clicavel=el.matches('button,a[href],input:not([type="hidden"]),select,textarea,[role="button"],[tabindex]');
+      if(clicavel&&(r.width<40||r.height<40)&&r.width>5&&r.height>5){
+        problemas.push({
+          tipo:'toque',
+          grupo:'acessibilidade',
+          titulo:'Área de toque pequena',
+          detalhe:`${Math.round(r.width)} × ${Math.round(r.height)} px`,
+          seletor:sel,
+          severidade:'aviso',
+          rect:retangulo(r),
+          dados:{largura:r.width,altura:r.height}
+        });
+      }
+
+      if(clicavel&&!nomeAcessivel(el,doc)){
+        problemas.push({
+          tipo:'rotulo',
+          grupo:'acessibilidade',
+          titulo:'Controle sem nome acessível',
+          detalhe:sel,
+          seletor:sel,
+          severidade:'aviso',
+          rect:retangulo(r),
+          dados:{}
+        });
       }
 
       const widthPx=parseFloat(cs.width);
-      if(foraX && Number.isFinite(widthPx) && widthPx>largura && !['auto','none'].includes(cs.maxWidth)){
-        problemas.push({tipo:'largura-fixa',titulo:'Largura rígida demais',detalhe:`${Math.round(widthPx)} px em viewport de ${largura} px`,seletor:sel,severidade:'aviso',rect:retangulo(r),dados:{widthPx}});
+      if(foraX&&Number.isFinite(widthPx)&&widthPx>largura&&!['auto','none'].includes(cs.maxWidth)){
+        problemas.push({
+          tipo:'largura-fixa',
+          grupo:'responsividade',
+          titulo:'Largura rígida demais',
+          detalhe:`${Math.round(widthPx)} px em viewport de ${largura} px`,
+          seletor:sel,
+          severidade:'aviso',
+          rect:retangulo(r),
+          dados:{widthPx}
+        });
       }
     }
 
     const globalOverflow=doc.documentElement.scrollWidth>largura+2;
     if(globalOverflow){
-      problemas.unshift({tipo:'overflow-global',titulo:'Overflow horizontal',detalhe:`documento ${doc.documentElement.scrollWidth}px / viewport ${largura}px`,seletor:'html',severidade:'critico',rect:null,dados:{scrollWidth:doc.documentElement.scrollWidth,viewport:largura}});
+      problemas.unshift({
+        tipo:'overflow-global',
+        grupo:'responsividade',
+        titulo:'Overflow horizontal',
+        detalhe:`documento ${doc.documentElement.scrollWidth}px / viewport ${largura}px`,
+        seletor:'html',
+        severidade:'critico',
+        rect:null,
+        dados:{scrollWidth:doc.documentElement.scrollWidth,viewport:largura}
+      });
     }
 
-    const unicos=[]; const vistos=new Set();
+    for(let i=1;i<headings.length;i++){
+      if(headings[i]-headings[i-1]>1){
+        problemas.push({
+          tipo:'hierarquia',
+          grupo:'acessibilidade',
+          titulo:'Hierarquia de títulos salta um nível',
+          detalhe:`H${headings[i-1]} → H${headings[i]}`,
+          seletor:'body',
+          severidade:'aviso',
+          rect:null,
+          dados:{}
+        });
+        break;
+      }
+    }
+
+    if(visiveis>1500){
+      problemas.push({
+        tipo:'performance-dom',
+        grupo:'desempenho',
+        titulo:'DOM muito grande',
+        detalhe:`${visiveis} elementos visíveis`,
+        seletor:'body',
+        severidade:'aviso',
+        rect:null,
+        dados:{elementos:visiveis}
+      });
+    }
+
+    if(animacoes>30){
+      problemas.push({
+        tipo:'performance-animacoes',
+        grupo:'desempenho',
+        titulo:'Muitas animações simultâneas',
+        detalhe:`${animacoes} elementos animados`,
+        seletor:'body',
+        severidade:'aviso',
+        rect:null,
+        dados:{animacoes}
+      });
+    }
+
+    if(efeitosPesados>80){
+      problemas.push({
+        tipo:'performance-efeitos',
+        grupo:'desempenho',
+        titulo:'Muitos efeitos de composição',
+        detalhe:`${efeitosPesados} elementos com filtro, sombra ou blur`,
+        seletor:'body',
+        severidade:'aviso',
+        rect:null,
+        dados:{efeitosPesados}
+      });
+    }
+
+    const unicos=[];
+    const vistos=new Set();
     for(const p of problemas){
-      const k=`${p.tipo}|${p.seletor}`; if(vistos.has(k)) continue; vistos.add(k); unicos.push(p); if(unicos.length>=80)break;
+      const k=`${p.tipo}|${p.seletor}`;
+      if(vistos.has(k))continue;
+      vistos.add(k);
+      unicos.push(p);
+      if(unicos.length>=120)break;
     }
 
     const criticos=unicos.filter(p=>p.severidade==='critico').length;
     const avisos=unicos.length-criticos;
-    const penalidade=Math.min(100,criticos*14+avisos*4+(globalOverflow?12:0));
-    const resultado={largura,altura,elementos:visiveis,ocultos,problemas:unicos,criticos,avisos,integridade:Math.max(0,100-penalidade),scrollWidth:doc.documentElement.scrollWidth,quando:new Date().toISOString()};
+    const penalidade=Math.min(100,criticos*14+avisos*3+(globalOverflow?12:0));
+    const metricas={
+      imagens,
+      animacoes,
+      efeitosPesados,
+      fixos,
+      recursos:win.performance?.getEntriesByType?.('resource')?.length||0,
+      navegacao:timingNavegacao(win)
+    };
+
+    const resultado={
+      largura,
+      altura,
+      elementos:visiveis,
+      ocultos,
+      problemas:unicos,
+      criticos,
+      avisos,
+      integridade:Math.max(0,100-penalidade),
+      scrollWidth:doc.documentElement.scrollWidth,
+      metricas,
+      quando:new Date().toISOString()
+    };
+
     this.ultimo=resultado;
     return resultado;
   }
 
   async varrer({definirViewport,larguraAtual,alturaAtual,progresso}){
-    const bases=[280,320,360,375,390,412,430,480,540,600,640,720,768,820,960,1024,1200,1280,1366,1440,1600,1920,2560,3440];
+    const bases=[280,320,360,375,390,412,430,480,540,600,640,720,768,820,900,960,1024,1120,1200,1280,1366,1440,1600,1920,2560,3440];
     const estados=[];
+
     for(let i=0;i<bases.length;i++){
-      const w=bases[i]; await definirViewport(w,alturaAtual,true); await espera(54);
+      const w=bases[i];
+      await definirViewport(w,alturaAtual,true);
+      await espera(54);
       const r=this.analisarAtual({marcar:false});
-      estados.push({largura:w,problemas:r.problemas.length,criticos:r.criticos,integridade:r.integridade});
+      const responsive=r.problemas.filter(p=>p.grupo==='responsividade');
+      estados.push({
+        largura:w,
+        problemas:r.problemas.length,
+        responsivos:responsive.length,
+        criticos:responsive.filter(p=>p.severidade==='critico').length,
+        integridade:r.integridade
+      });
       progresso?.((i+1)/bases.length,w);
     }
 
     const candidatas=[];
-    for(let i=1;i<estados.length;i++) if(estados[i-1].problemas!==estados[i].problemas) candidatas.push([estados[i-1],estados[i]]);
-    const fraturas=[];
-    for(const [a,b] of candidatas.slice(0,10)){
-      let lo=Math.min(a.largura,b.largura), hi=Math.max(a.largura,b.largura), base=a.problemas;
-      while(hi-lo>2){
-        const mid=Math.round((lo+hi)/2); await definirViewport(mid,alturaAtual,true); await espera(36);
-        const qtd=this.analisarAtual({marcar:false}).problemas.length;
-        if(qtd===base) lo=mid; else hi=mid;
-      }
-      fraturas.push({largura:hi,antes:base,depois:b.problemas});
+    for(let i=1;i<estados.length;i++){
+      if(estados[i-1].responsivos!==estados[i].responsivos)candidatas.push([estados[i-1],estados[i]]);
     }
 
-    await definirViewport(larguraAtual,alturaAtual,true); await espera(60);
+    const fraturas=[];
+    for(const [a,b] of candidatas.slice(0,12)){
+      let lo=Math.min(a.largura,b.largura);
+      let hi=Math.max(a.largura,b.largura);
+      const base=a.responsivos;
+      while(hi-lo>2){
+        const mid=Math.round((lo+hi)/2);
+        await definirViewport(mid,alturaAtual,true);
+        await espera(36);
+        const qtd=this.analisarAtual({marcar:false}).problemas.filter(p=>p.grupo==='responsividade').length;
+        if(qtd===base)lo=mid;
+        else hi=mid;
+      }
+      fraturas.push({largura:hi,antes:base,depois:b.responsivos});
+    }
+
+    await definirViewport(larguraAtual,alturaAtual,true);
+    await espera(60);
     const atual=this.analisarAtual({marcar:false});
     return {estados,fraturas,atual};
   }
