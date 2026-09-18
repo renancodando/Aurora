@@ -146,10 +146,24 @@ export async function importarGitHubLocal(url){
 export async function importarUrlLocal(url){
   const destino=new URL(url);
   if(!/^https?:$/.test(destino.protocol))throw new Error('Use uma URL http ou https.');
-  const resposta=await fetch(destino.toString(),{mode:'cors',redirect:'follow'});
-  if(!resposta.ok)throw new Error('Não consegui abrir essa URL.');
-  const html=await resposta.text();
-  const base='<base href="'+destino.toString().replaceAll('"','&quot;')+'">';
+
+  let html='';
+  let finalUrl=destino.toString();
+
+  try{
+    const direta=await fetch(finalUrl,{mode:'cors',redirect:'follow'});
+    if(!direta.ok)throw new Error();
+    html=await direta.text();
+    finalUrl=direta.url||finalUrl;
+  }catch{
+    const proxy=await fetch('/api/proxy-url?url='+encodeURIComponent(finalUrl));
+    const dados=await proxy.json().catch(()=>({}));
+    if(!proxy.ok)throw new Error(dados.erro||'A página bloqueou a importação por URL.');
+    html=dados.html||'';
+    finalUrl=dados.finalUrl||finalUrl;
+  }
+
+  const base='<base href="'+finalUrl.replaceAll('"','&quot;')+'">';
   const preparado=/<head[^>]*>/i.test(html)?html.replace(/<head([^>]*)>/i,'<head$1>'+base):base+html;
-  return publicar([{path:'index.html',blob:new Blob([preparado],{type:'text/html'})}],destino.hostname,'URL');
+  return publicar([{path:'index.html',blob:new Blob([preparado],{type:'text/html'})}],new URL(finalUrl).hostname,'URL');
 }
