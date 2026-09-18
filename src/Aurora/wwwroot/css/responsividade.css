@@ -64,7 +64,11 @@
     border-left:0;
     border-bottom-color:var(--acento);
   }
-  .rail-spacer,.frase-lateral,.rail-item.compacto{display:none}
+  .rail-spacer{display:none}
+  .frase-lateral{min-height:44px;padding:8px 12px;display:flex;align-items:center;gap:10px}
+  .frase-lateral i{margin:0;flex:0 0 20px}
+  .frase-lateral span{font-size:7px;line-height:1.45}
+  .rail-item.compacto{min-height:44px;border-top:0;padding-top:0}
   .centro{grid-area:centro}
   .inspetor{
     grid-area:inspetor;
@@ -208,7 +212,8 @@
   .palco{
     padding:8px;
   }
-  .regua-y{display:none}
+  .regua-y{left:2px;width:28px}
+  .palco{padding-left:34px}
   .moldura-viewport{min-height:0}
   .vazio{
     position:relative;
@@ -295,7 +300,6 @@
     transform-origin:center;
   }
   .opcoes-diretas{margin-top:18px}
-  .assinatura{display:none}
 }
 
 @media (hover:none) and (pointer:coarse){
