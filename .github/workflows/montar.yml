@@ -17,7 +17,7 @@ jobs:
       - name: montar projeto
         shell: bash
         run: |
-          cat .bootstrap/parte-* | base64 -d > /tmp/aurora.tar.gz
+          cat .bootstrap/parte-a1 .bootstrap/parte-a2 .bootstrap/parte-ab .bootstrap/parte-ac .bootstrap/parte-ad .bootstrap/parte-ae .bootstrap/parte-af | base64 -d > /tmp/aurora.tar.gz
           tar -xzf /tmp/aurora.tar.gz -C .
           rm -rf .bootstrap
           rm -f .github/workflows/montar.yml
