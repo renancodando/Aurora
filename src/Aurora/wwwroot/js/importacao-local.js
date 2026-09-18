@@ -122,3 +122,34 @@ export async function exportarProjetoLocal(projeto,css='',relatorio={}){
   a.href=url;a.download=projeto.nome+'-AURORA.zip';document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
+
+
+export async function importarGitHubLocal(url){
+  const u=new URL(url);
+  if(u.hostname!=='github.com')throw new Error('Use um link público do GitHub.');
+  const partes=u.pathname.split('/').filter(Boolean);
+  if(partes.length<2)throw new Error('Link do repositório incompleto.');
+  const [owner,repoBruto]=partes;
+  const repo=repoBruto.replace(/\.git$/i,'');
+  const resposta=await fetch('https://api.github.com/repos/'+encodeURIComponent(owner)+'/'+encodeURIComponent(repo)+'/zipball',{
+    headers:{Accept:'application/vnd.github+json'}
+  });
+  if(!resposta.ok)throw new Error('Não consegui baixar esse repositório público.');
+  const blob=await resposta.blob();
+  const arquivo=new File([blob],repo+'.zip',{type:'application/zip'});
+  const projeto=await importarZipLocal(arquivo);
+  projeto.nome=nomeProjeto(repo);
+  projeto.entrada='GitHub público';
+  return projeto;
+}
+
+export async function importarUrlLocal(url){
+  const destino=new URL(url);
+  if(!/^https?:$/.test(destino.protocol))throw new Error('Use uma URL http ou https.');
+  const resposta=await fetch(destino.toString(),{mode:'cors',redirect:'follow'});
+  if(!resposta.ok)throw new Error('Não consegui abrir essa URL.');
+  const html=await resposta.text();
+  const base='<base href="'+destino.toString().replaceAll('"','&quot;')+'">';
+  const preparado=/<head[^>]*>/i.test(html)?html.replace(/<head([^>]*)>/i,'<head$1>'+base):base+html;
+  return publicar([{path:'index.html',blob:new Blob([preparado],{type:'text/html'})}],destino.hostname,'URL');
+}
