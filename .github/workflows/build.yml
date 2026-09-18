@@ -16,3 +16,21 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet restore Aurora.sln
       - run: dotnet build Aurora.sln -c Release --no-restore
+      - name: teste rápido
+        shell: bash
+        run: |
+          dotnet run --project src/Aurora/Aurora.csproj -c Release --no-build --urls http://127.0.0.1:5187 > /tmp/aurora.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:5187/ > /tmp/index.html; then
+              break
+            fi
+            sleep 1
+          done
+          grep -q "AURORA" /tmp/index.html
+          mkdir -p /tmp/site
+          printf '<!doctype html><html><body><main style="width:1200px">teste</main></body></html>' > /tmp/site/index.html
+          (cd /tmp/site && zip -q /tmp/site.zip index.html)
+          curl -fsS -F arquivo=@/tmp/site.zip http://127.0.0.1:5187/api/projetos/zip > /tmp/import.json
+          grep -q '"id"' /tmp/import.json
