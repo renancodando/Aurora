@@ -3,6 +3,7 @@ import { obterClima as consultarClima, buscarCidades } from './clima.js';
 import { iniciarCeu } from './ceu.js';
 import { AuroraAnalise } from './analise.js';
 import { gerarCorrecoes, aplicarNoPreview, limparPreview } from './correcoes.js';
+import { importarZipLocal, importarPastaLocal, importarGitHubLocal, importarUrlLocal, exportarProjetoLocal } from './importacao-local.js';
 
 iniciarAdaptiveEngine();
 
@@ -240,7 +241,7 @@ function renderizarFraturas(){
 }
 
 async function persistirCorrecoes(){
-  if(!estado.projeto)return;
+  if(!estado.projeto||estado.projeto.local)return;
   const css=$('#auto-ajustes').checked?estado.cssCorrecao:'';
   const resumo={largura:estado.largura,altura:estado.altura,problemasAntes:estado.analise?.problemas?.length||0,fraturas:estado.fraturas};
   const r=await fetch(`/api/projetos/${estado.projeto.id}/correcoes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({css,resumo})});
@@ -275,9 +276,14 @@ async function gerarVersao(){
     const validacao=await validarCorrecoesCompleto();
     if(!validacao.aceita) throw new Error(`Correção rejeitada: ${validacao.antes.criticos} → ${validacao.depois.criticos} rupturas críticas.`);
     await persistirCorrecoes();
-    const relatorio={projeto:estado.projeto,analise:estado.analise,fraturas:estado.fraturas,historico:estado.historico,correcoesAtivas:$('#auto-ajustes').checked,validacao,geradoEm:new Date().toISOString()};
-    await fetch(`/api/projetos/${estado.projeto.id}/relatorio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:relatorio})});
-    const a=document.createElement('a');a.href=`/api/projetos/${estado.projeto.id}/exportar`;a.download='';document.body.appendChild(a);a.click();a.remove();
+    const projetoRelatorio={id:estado.projeto.id,nome:estado.projeto.nome,entrada:estado.projeto.entrada,quantidadeArquivos:estado.projeto.quantidadeArquivos};
+    const relatorio={projeto:projetoRelatorio,analise:estado.analise,fraturas:estado.fraturas,historico:estado.historico,correcoesAtivas:$('#auto-ajustes').checked,validacao,geradoEm:new Date().toISOString()};
+    if(estado.projeto.local){
+      await exportarProjetoLocal(estado.projeto,$('#auto-ajustes').checked?estado.cssCorrecao:'',relatorio);
+    }else{
+      await fetch(`/api/projetos/${estado.projeto.id}/relatorio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:relatorio})});
+      const link=document.createElement('a');link.href=`/api/projetos/${estado.projeto.id}/exportar`;link.download='';document.body.appendChild(link);link.click();link.remove();
+    }
     toast('Nova versão gerada','ZIP + relatório, sem alterar o original');
   }catch(e){toast('Não consegui exportar',e.message);}
   finally{btn.disabled=false;status('', '', false);}
@@ -302,8 +308,30 @@ function configurarImportacao(){
   const abrir=()=>dialog.showModal();
   $('#abrir-importacao').addEventListener('click',abrir);
 
-  const importarZip=e=>{const arq=e.target.files?.[0];if(!arq)return;const fd=new FormData();fd.append('arquivo',arq);importar('/api/projetos/zip',fd);e.target.value='';};
-  const importarPasta=e=>{const arquivos=[...e.target.files];if(!arquivos.length)return;const fd=new FormData();for(const arq of arquivos){fd.append('arquivos',arq,arq.name);fd.append('caminhos',arq.webkitRelativePath||arq.name);}importar('/api/projetos/pasta',fd);e.target.value='';};
+  const abrirProjetoLocal=async(acao,detalhe)=>{
+    status(detalhe,'preparando o workspace local');
+    try{
+      const manifesto=await acao();
+      if(dialog.open)dialog.close();
+      await carregarProjeto(manifesto);
+    }catch(e){toast('Não consegui importar',e.message);}
+    finally{status('', '', false);}
+  };
+
+  const importarZip=e=>{
+    const arq=e.target.files?.[0];
+    if(!arq)return;
+    abrirProjetoLocal(()=>importarZipLocal(arq),'abrindo ZIP');
+    e.target.value='';
+  };
+
+  const importarPasta=e=>{
+    const arquivos=[...e.target.files];
+    if(!arquivos.length)return;
+    abrirProjetoLocal(()=>importarPastaLocal(arquivos),'abrindo pasta');
+    e.target.value='';
+  };
+
   $('#input-zip')?.addEventListener('change',importarZip);
   $('#input-zip-dialog')?.addEventListener('change',importarZip);
   $('#input-pasta')?.addEventListener('change',importarPasta);
@@ -312,9 +340,29 @@ function configurarImportacao(){
   const area=$('.moldura-viewport');
   area?.addEventListener('dragover',e=>{e.preventDefault();area.classList.add('arrastando');});
   area?.addEventListener('dragleave',()=>area.classList.remove('arrastando'));
-  area?.addEventListener('drop',e=>{e.preventDefault();area.classList.remove('arrastando');const arquivo=[...e.dataTransfer.files].find(x=>x.name.toLowerCase().endsWith('.zip'));if(!arquivo)return toast('Use um ZIP para arrastar e soltar','pastas podem ser abertas pelo botão Pasta');const fd=new FormData();fd.append('arquivo',arquivo);importar('/api/projetos/zip',fd);});
-  $('[data-importacao]').forEach(b=>b.addEventListener('click',()=>{estado.importacao=b.dataset.importacao;if(!dialog.open)dialog.showModal();$('#importacao-texto').hidden=false;$('#valor-importacao').placeholder=estado.importacao==='github'?'https://github.com/usuario/repositorio':'https://seusite.com';setTimeout(()=>$('#valor-importacao').focus(),30);}));
-  $('#confirmar-importacao').addEventListener('click',()=>{const valor=$('#valor-importacao').value.trim();if(!valor)return;importar(`/api/projetos/${estado.importacao}`,{url:valor},'json');});
+  area?.addEventListener('drop',e=>{
+    e.preventDefault();area.classList.remove('arrastando');
+    const arquivo=[...e.dataTransfer.files].find(x=>x.name.toLowerCase().endsWith('.zip'));
+    if(!arquivo)return toast('Arraste um ZIP','pastas podem ser abertas pelo botão Pasta');
+    abrirProjetoLocal(()=>importarZipLocal(arquivo),'abrindo ZIP');
+  });
+
+  $$('[data-importacao]').forEach(b=>b.addEventListener('click',()=>{
+    estado.importacao=b.dataset.importacao;
+    if(!dialog.open)dialog.showModal();
+    $('#importacao-texto').hidden=false;
+    $('#valor-importacao').placeholder=estado.importacao==='github'?'https://github.com/usuario/repositorio':'https://seusite.com';
+    setTimeout(()=>$('#valor-importacao').focus(),30);
+  }));
+
+  $('#confirmar-importacao').addEventListener('click',async()=>{
+    const valor=$('#valor-importacao').value.trim();
+    if(!valor)return;
+    const acao=estado.importacao==='github'?()=>importarGitHubLocal(valor):()=>importarUrlLocal(valor);
+    try{
+      await abrirProjetoLocal(acao,estado.importacao==='github'?'abrindo GitHub':'abrindo URL');
+    }catch{}
+  });
 }
 
 function configurarLocalizacao(){
