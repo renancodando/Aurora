@@ -326,3 +326,14 @@
 html[data-performance="eco"] .moldura-viewport{
   background-image:none;
 }
+
+@media (max-width:1180px){
+  html,body{overflow:auto}
+  .aurora{height:auto;min-height:100dvh;grid-template-rows:auto auto}
+}
+@media (max-width:820px){
+  .centro{grid-template-rows:auto auto minmax(460px,64dvh) auto}
+}
+@media (max-width:520px){
+  .centro{grid-template-rows:auto auto minmax(500px,68dvh) auto}
+}
