@@ -11,7 +11,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 const limitar=(n,a,b)=>Math.max(a,Math.min(b,n));
 
 const estado = {
-  projeto:null,
+  projeto:{id:null,nome:'seudominio.com.br',entrada:'demo',quantidadeArquivos:1,urlPreview:'/demo.html',demo:true},
   largura:1440,
   altura:900,
   zoom:1,
@@ -93,6 +93,8 @@ async function aplicarViewport(largura,altura, silencioso=false){
   $('#controle-largura').value=estado.largura;
   $('#largura-manual').value=estado.largura;
   $('#altura-manual').value=estado.altura;
+  const bolha=$('#bolha-largura');
+  if(bolha){bolha.textContent=estado.largura;bolha.style.left=`${(estado.largura-280)/(3440-280)*100}%`;}
   if($('#janela-preview').hidden) return;
 
   const disp=dimensoesDisponiveis();
@@ -146,7 +148,7 @@ preview.addEventListener('load',async()=>{
   if(!estado.projeto)return;
   await esperar(180);
   await aplicarViewport(estado.largura,estado.altura,true);
-  executarAnalise(true);
+  if(!estado.projeto.demo) executarAnalise(true);
   status('', '', false);
 });
 
@@ -232,7 +234,7 @@ function renderizarFraturas(){
 }
 
 async function persistirCorrecoes(){
-  if(!estado.projeto)return;
+  if(!estado.projeto || estado.projeto.demo)return;
   const css=$('#auto-ajustes').checked?estado.cssCorrecao:'';
   const resumo={largura:estado.largura,altura:estado.altura,problemasAntes:estado.analise?.problemas?.length||0,fraturas:estado.fraturas};
   const r=await fetch(`/api/projetos/${estado.projeto.id}/correcoes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({css,resumo})});
@@ -262,6 +264,7 @@ async function validarCorrecoesCompleto(){
 
 async function gerarVersao(){
   if(!estado.projeto)return;
+  if(estado.projeto.demo){$('#dialog-importar').showModal();return;}
   const btn=$('#gerar-versao');btn.disabled=true;status('gerando nova versão','original preservado');
   try{
     const validacao=await validarCorrecoesCompleto();
@@ -378,3 +381,5 @@ function mostrarDesempenho(){
 
 configurarImportacao();configurarLocalizacao();configurarViewport();configurarNavegacao();
 atualizarLocalCabecalho();
+$('#gerar-versao').disabled=false;
+setTimeout(()=>aplicarViewport(1440,900,true),120);
