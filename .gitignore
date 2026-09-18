@@ -1,0 +1,12 @@
+.vs/
+bin/
+obj/
+node_modules/
+.vercel/
+.env
+.env.*
+!.env.example
+*.user
+*.suo
+*.zip
+src/Aurora/.aurora-workspace/

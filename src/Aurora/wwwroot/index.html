@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#05080d">
+  <meta name="description" content="AURORA — laboratório de responsividade adaptativa sem IA.">
+  <title>AURORA</title>
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/responsividade.css">
+</head>
+<body>
+  <canvas id="ceu-atmosfera" aria-hidden="true"></canvas>
+  <canvas id="ceu-astros" aria-hidden="true"></canvas>
+  <div class="vinheta" aria-hidden="true"></div>
+
+  <main class="aurora" data-adaptive>
+    <header class="topo">
+      <div class="marca" aria-label="Aurora">
+        <strong>AURORA</strong>
+        <span>interfaces que respiram</span>
+      </div>
+
+      <nav class="etapas" aria-label="Etapas">
+        <button class="etapa ativa" data-painel="analise">Analisar</button>
+        <button class="etapa" data-painel="ajustes">Ajustar</button>
+        <button class="etapa" data-painel="exportar">Exportar</button>
+        <button class="etapa" data-painel="historico">Histórico</button>
+      </nav>
+
+      <div class="tempo-local">
+        <button id="abrir-localizacao" class="localizacao" type="button" title="Alterar localização">
+          <span class="icone">⌖</span>
+          <span><b id="cidade-atual">Localização</b><small id="status-ceu">céu ao vivo</small></span>
+        </button>
+        <div class="relogio">
+          <b id="hora-local">--:--</b>
+          <small id="data-local">--</small>
+        </div>
+        <div class="fase-lua" title="Fase da Lua">
+          <canvas id="mini-lua" width="42" height="42"></canvas>
+          <span><b id="nome-lua">Lua</b><small id="percentual-lua">--%</small></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="estacao" id="estacao">
+      <aside class="rail" aria-label="Ferramentas">
+        <button class="rail-item ativo" data-secao="analise"><span>◎</span><b>Análise</b><small>visão geral</small></button>
+        <button class="rail-item" data-secao="ajustes"><span>⌁</span><b>Ajustes</b><small>responsividade</small></button>
+        <button class="rail-item" data-secao="elementos"><span>▦</span><b>Elementos</b><small>DOM e estilos</small></button>
+        <button class="rail-item" data-secao="comportamento"><span>⌗</span><b>Comportamento</b><small>mudanças</small></button>
+        <button class="rail-item" data-secao="acessibilidade"><span>◉</span><b>Acessibilidade</b><small>interação</small></button>
+        <button class="rail-item" data-secao="desempenho"><span>◒</span><b>Desempenho</b><small>estabilidade</small></button>
+        <button class="rail-item" data-secao="exportar"><span>⇩</span><b>Exportar</b><small>nova versão</small></button>
+        <div class="rail-spacer"></div>
+        <button class="rail-item compacto" id="modo-foco"><span>↗</span><b>Modo foco</b><kbd>F2</kbd></button>
+      </aside>
+
+      <section class="centro" data-adaptive>
+        <div class="barra-projeto">
+          <div class="entrada-projeto" id="entrada-projeto">
+            <span class="globo">◎</span>
+            <input id="campo-origem" value="Nenhum projeto carregado" readonly aria-label="Projeto atual">
+          </div>
+          <button class="botao-iconico" id="abrir-importacao" title="Abrir projeto">＋</button>
+          <div class="seletor-dispositivo" aria-label="Modo de visualização">
+            <button class="dispositivo ativo" data-device="desktop" title="Desktop">▰</button>
+            <button class="dispositivo" data-device="tablet" title="Tablet">▯</button>
+            <button class="dispositivo" data-device="mobile" title="Celular">▯</button>
+          </div>
+          <label class="campo-resolucao">
+            <input id="largura-manual" type="number" min="280" max="3440" value="1440">
+            <span>×</span>
+            <input id="altura-manual" type="number" min="320" max="2160" value="900">
+          </label>
+          <button class="botao-iconico" id="recarregar-preview" title="Recarregar">↻</button>
+          <button class="botao-iconico" id="tela-cheia" title="Ampliar visualização">⛶</button>
+        </div>
+
+        <div class="palco" id="palco">
+          <div class="vazio" id="estado-vazio">
+            <div class="orbita-vazio" aria-hidden="true"><i></i><i></i><i></i></div>
+            <p>AURORA</p>
+            <h1>Solte um projeto.<br>Eu encontro onde ele quebra.</h1>
+            <span>ZIP, pasta, URL ou repositório público no GitHub.</span>
+            <button class="botao-principal" id="importar-primeiro">Abrir projeto</button>
+          </div>
+
+          <div class="janela-preview" id="janela-preview" hidden>
+            <div class="viewport" id="viewport">
+              <iframe id="preview" title="Projeto em análise" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin allow-downloads"></iframe>
+              <div id="camada-marcacoes" class="camada-marcacoes" aria-hidden="true"></div>
+            </div>
+            <div class="alca-resize alca-direita" data-resize="x"></div>
+            <div class="alca-resize alca-baixo" data-resize="y"></div>
+            <div class="alca-resize alca-canto" data-resize="xy"></div>
+          </div>
+
+          <div class="status-flutuante" id="status-flutuante" hidden>
+            <span class="ponto"></span>
+            <b id="status-texto">analisando</b>
+            <small id="status-detalhe">preparando o projeto</small>
+          </div>
+        </div>
+
+        <div class="regua" id="regua">
+          <div class="regua-topo">
+            <span>Largura da viewport</span>
+            <div class="regua-acoes">
+              <button id="executar-varredura">Varredura completa</button>
+              <select id="zoom-preview" aria-label="Zoom">
+                <option value="1">100%</option>
+                <option value="0.85">85%</option>
+                <option value="0.7">70%</option>
+                <option value="0.55">55%</option>
+              </select>
+            </div>
+          </div>
+          <div class="trilho-regua">
+            <input id="controle-largura" type="range" min="280" max="3440" value="1440" step="1" aria-label="Largura da viewport">
+            <div id="marcas-fratura" class="marcas-fratura"></div>
+          </div>
+          <div class="ticks" aria-hidden="true">
+            <span style="--x:0">280</span><span style="--x:2.53">360</span><span style="--x:4.17">412</span><span style="--x:15.44">768</span><span style="--x:23.54">1024</span><span style="--x:36.71">1440</span><span style="--x:51.9">1920</span><span style="--x:72.15">2560</span><span style="--x:100">3440</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="inspetor" id="inspetor" aria-live="polite">
+        <section class="bloco diagnostico">
+          <div class="titulo-bloco"><span class="estado ok" id="estado-layout"></span><div><b id="titulo-layout">Aguardando projeto</b><small id="subtitulo-layout">importe um site para começar</small></div></div>
+          <div class="medidor">
+            <div class="anel" id="anel-integridade"><b id="integridade">--</b></div>
+            <dl>
+              <div><dt>Elementos</dt><dd id="qtd-elementos">0</dd></div>
+              <div><dt>Erros</dt><dd id="qtd-erros">0</dd></div>
+              <div><dt>Avisos</dt><dd id="qtd-avisos">0</dd></div>
+              <div><dt>Ocultos</dt><dd id="qtd-ocultos">0</dd></div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="bloco pontos">
+          <div class="cabecalho-bloco"><b>Pontos de atenção</b><span id="contador-pontos">0</span></div>
+          <div id="lista-problemas" class="lista-problemas">
+            <p class="sem-dados">Nada analisado ainda.</p>
+          </div>
+        </section>
+
+        <section class="bloco correcoes">
+          <div class="cabecalho-bloco"><b>Ajustes em tempo real</b><label class="switch"><input id="auto-ajustes" type="checkbox"><i></i></label></div>
+          <div id="lista-correcoes" class="lista-correcoes">
+            <label><input type="checkbox" checked disabled> escala fluida</label>
+            <label><input type="checkbox" checked disabled> espaçamentos adaptativos</label>
+            <label><input type="checkbox" checked disabled> container queries</label>
+            <label><input type="checkbox" checked disabled> menor alteração possível</label>
+          </div>
+        </section>
+
+        <section class="bloco saida">
+          <button class="botao-principal" id="gerar-versao" disabled>Gerar nova versão <span>→</span></button>
+          <div class="garantias"><span>◉ original preservado</span><span>◌ <b id="conteudo-removido">0</b> conteúdo removido</span></div>
+        </section>
+      </aside>
+    </section>
+
+    <footer class="barra-ceu">
+      <button id="toggle-ceu" class="ceu-status"><i></i><span>Céu ao vivo</span></button>
+      <div class="velocidade-tempo"><span>Velocidade do tempo</span><button class="velocidade ativa" data-speed="1">1×</button><button class="velocidade" data-speed="60">60×</button><button class="velocidade" data-speed="600">600×</button></div>
+      <div class="clima-resumo"><span>☁</span><div><small>Condições</small><b id="condicao-clima">carregando</b></div></div>
+      <button class="abrir-ceu" id="detalhes-ceu">ver mais do céu⌃</button>
+    </footer>
+  </main>
+
+  <dialog id="dialog-importar" class="dialogo">
+    <form method="dialog" class="dialogo-caixa">
+      <button class="fechar" value="cancel" aria-label="Fechar">×</button>
+      <span class="sobrelinha">NOVO PROJETO</span>
+      <h2>O que vamos testar?</h2>
+      <p>O original fica intacto. O AURORA trabalha sempre em uma cópia.</p>
+      <div class="opcoes-importacao">
+        <label class="opcao-arquivo">
+          <input id="input-zip" type="file" accept=".zip" hidden>
+          <b>ZIP</b><small>mais completo</small>
+        </label>
+        <label class="opcao-arquivo">
+          <input id="input-pasta" type="file" webkitdirectory directory multiple hidden>
+          <b>Pasta</b><small>arquivos locais</small>
+        </label>
+        <button type="button" class="opcao-arquivo" data-importacao="url"><b>URL</b><small>captura uma página</small></button>
+        <button type="button" class="opcao-arquivo" data-importacao="github"><b>GitHub</b><small>repo público</small></button>
+      </div>
+      <div class="importacao-texto" id="importacao-texto" hidden>
+        <input id="valor-importacao" type="url" placeholder="https://..." autocomplete="off">
+        <button id="confirmar-importacao" type="button">Importar</button>
+      </div>
+      <div class="progresso-importacao" id="progresso-importacao" hidden><i></i><span>Preparando a cópia...</span></div>
+    </form>
+  </dialog>
+
+  <dialog id="dialog-localizacao" class="dialogo pequeno">
+    <form method="dialog" class="dialogo-caixa">
+      <button class="fechar" value="cancel" aria-label="Fechar">×</button>
+      <span class="sobrelinha">CÉU AURORA</span>
+      <h2>Localização do céu</h2>
+      <p>Usada apenas para Sol, Lua, estrelas e clima.</p>
+      <button type="button" class="botao-principal" id="usar-localizacao">Usar minha localização</button>
+      <div class="separador"><span>ou</span></div>
+      <div class="busca-local"><input id="busca-cidade" placeholder="Digite uma cidade"><button id="buscar-cidade" type="button">Buscar</button></div>
+      <div id="resultados-cidade" class="resultados-cidade"></div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

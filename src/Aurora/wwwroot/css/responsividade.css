@@ -1,0 +1,97 @@
+@container aurora (max-width: 1320px) {
+  .estacao { grid-template-columns: 72px minmax(0,1fr) minmax(248px, 286px); }
+  .rail { padding: 8px; }
+  .rail-item { grid-template-columns: 1fr; grid-template-rows: auto; justify-items: center; gap: 0; min-height: 52px; padding: 9px 5px; }
+  .rail-item span { grid-row: auto; font-size: 17px; }
+  .rail-item b, .rail-item small, .rail kbd { display:none; }
+  .marca span { display:none; }
+}
+
+@container aurora (max-width: 1080px) {
+  .topo { grid-template-columns: auto 1fr auto; }
+  .etapas { justify-self:center; gap:4px; }
+  .etapa { padding-inline:8px; font-size:10px; }
+  .localizacao { min-width:auto; }
+  .localizacao span:last-child { display:none; }
+  .relogio small, .fase-lua span { display:none; }
+  .estacao { grid-template-columns: 62px minmax(0,1fr); }
+  .inspetor { position:absolute; z-index:20; right:clamp(12px,1.6vw,28px); top:86px; bottom:64px; width:min(310px,calc(100vw - 96px)); transform:translateX(calc(100% + 40px)); transition:transform .22s ease; }
+  .inspetor.aberto { transform:translateX(0); }
+  .centro { grid-column:2; }
+  .barra-projeto { grid-template-columns:minmax(140px,1fr) auto auto auto auto; }
+  .campo-resolucao { display:none; }
+}
+
+@container aurora (max-width: 780px) {
+  .aurora { padding:10px; gap:8px; }
+  .topo { min-height:52px; grid-template-columns:auto 1fr auto; }
+  .marca strong { font-size:19px; }
+  .etapas { overflow:auto hidden; justify-content:center; }
+  .etapa { min-width:max-content; padding-block:15px 12px; }
+  .tempo-local .relogio, .fase-lua { display:none; }
+  .estacao { grid-template-columns: 52px minmax(0,1fr); gap:8px; }
+  .rail { border-radius:13px; padding:5px; }
+  .rail-item { min-height:44px; }
+  .centro { border-radius:13px; }
+  .barra-projeto { grid-template-columns:1fr auto auto auto; padding:7px; }
+  .seletor-dispositivo { display:none; }
+  .palco { padding:8px; }
+  .regua { padding-inline:10px; }
+  .regua-topo > span { display:none; }
+  .regua-acoes { margin-left:auto; }
+  .ticks span:nth-child(2n) { display:none; }
+  .barra-ceu { justify-content:flex-start; overflow:auto hidden; scrollbar-width:none; }
+  .barra-ceu::-webkit-scrollbar { display:none; }
+  .abrir-ceu { display:none; }
+}
+
+@container aurora (max-width: 560px) {
+  .topo { grid-template-columns:1fr auto; }
+  .etapas { position:absolute; left:72px; right:62px; top:10px; justify-content:center; pointer-events:none; }
+  .etapa { display:none; }
+  .etapa.ativa { display:block; border:0; pointer-events:auto; }
+  .tempo-local { gap:4px; }
+  .localizacao { padding:7px 9px; }
+  .estacao { grid-template-columns:1fr; }
+  .rail { position:absolute; z-index:18; left:10px; right:10px; bottom:54px; height:48px; display:grid; grid-template-columns:repeat(7,1fr); overflow:hidden; border-radius:13px; background:rgba(7,13,22,.94); }
+  .rail-item { min-height:36px; padding:4px; border:0; }
+  .rail-item span { font-size:15px; }
+  .rail-item:nth-of-type(n+6) { display:none; }
+  .rail-spacer, .rail-item.compacto { display:none; }
+  .centro { grid-column:1; padding-bottom:52px; }
+  .entrada-projeto { min-width:0; }
+  .entrada-projeto .globo { display:none; }
+  .barra-projeto { grid-template-columns:minmax(0,1fr) auto auto; }
+  #tela-cheia { display:none; }
+  .vazio h1 { font-size:clamp(27px,10cqi,40px); }
+  .regua-acoes button { display:none; }
+  .barra-ceu { min-height:36px; }
+  .velocidade-tempo > span, .clima-resumo { display:none; }
+  .dialogo-caixa { padding:22px 16px; }
+  .opcoes-importacao { grid-template-columns:repeat(2,1fr); }
+}
+
+@media (max-height: 720px) {
+  .aurora { padding-block:8px; gap:7px; }
+  .topo { min-height:48px; }
+  .rail-item { min-height:44px; padding-block:7px; }
+  .regua { padding-block:7px; }
+  .barra-ceu { min-height:36px; }
+  .bloco { padding-block:9px; }
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  .palco { min-height:48dvh; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button, .rail-item, .problema { min-height:44px; }
+  .botao-iconico, .dispositivo { min-width:44px; }
+  .alca-direita { width:20px; right:-10px; }
+  .alca-baixo { height:20px; bottom:-10px; }
+  .alca-canto { width:26px; height:26px; right:-10px; bottom:-10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.001ms !important; }
+}
