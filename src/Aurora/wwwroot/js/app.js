@@ -2,7 +2,7 @@ import { iniciarAdaptiveEngine } from './adaptive.js';
 import { obterClima as consultarClima, buscarCidades } from './clima.js';
 import { iniciarCeu } from './ceu.js';
 import { AuroraAnalise } from './analise.js';
-import { gerarCorrecoes, aplicarNoPreview, limparPreview } from './correcoes.js';
+import { gerarCorrecoes, descreverCorrecoes, aplicarNoPreview, limparPreview } from './correcoes.js';
 import { importarZipLocal, importarPastaLocal, importarGitHubLocal, importarUrlLocal, exportarProjetoLocal } from './importacao-local.js';
 
 iniciarAdaptiveEngine();
@@ -23,7 +23,10 @@ const estado = {
   local:JSON.parse(localStorage.getItem('aurora-local') || 'null') || {nome:'Vitória, ES',latitude:-20.3155,longitude:-40.3128,elevacao:4,timezone:'America/Sao_Paulo'},
   clima:{nuvens:22,baixas:12,medias:18,altas:24,vento:7,direcao:95,descricao:'atualizando'},
   importacao:'url',
-  modoAnalise:'layout'
+  modoAnalise:'layout',
+  analiseBase:null,
+  planoCorrecao:null,
+  diferencas:null
 };
 
 const preview=$('#preview');
@@ -137,7 +140,7 @@ async function importar(endpoint, body, tipo='form'){
 
 async function carregarProjeto(manifesto){
   estado.projeto=manifesto;
-  estado.cssCorrecao=''; estado.fraturas=[]; estado.historico=[];
+  estado.cssCorrecao=''; estado.fraturas=[]; estado.historico=[]; estado.analiseBase=null; estado.planoCorrecao=null; estado.diferencas=null;
   $('#campo-origem').value=`${manifesto.nome} · ${manifesto.entrada}`;
   $('#estado-vazio').hidden=true;
   $('#janela-preview').hidden=false;
@@ -260,6 +263,7 @@ function renderizarAnalise(r,marcar=true){
 
   const lista=$('#lista-problemas');
   lista.replaceChildren();
+  $('#bloco-problemas')?.classList.toggle('tem-dados',problemas.length>0||estado.modoAnalise==='desempenho');
 
   if(estado.modoAnalise==='desempenho')renderizarMetricasDesempenho(r,lista);
 
@@ -284,7 +288,10 @@ function renderizarAnalise(r,marcar=true){
   if(marcar)desenharMarcacoes(problemas);
 
   if($('#auto-ajustes').checked){
-    estado.cssCorrecao=gerarCorrecoes(r.problemas,{largura:estado.largura,fraturas:estado.fraturas});
+    if(!estado.cssCorrecao){
+      estado.planoCorrecao=descreverCorrecoes(r.problemas,{largura:estado.largura,fraturas:estado.fraturas});
+      estado.cssCorrecao=estado.planoCorrecao.css;
+    }
     aplicarNoPreview(preview,estado.cssCorrecao);
   }
 }
@@ -387,22 +394,104 @@ async function validarCorrecoesCompleto(){
   return {aceita:true,antes,depois};
 }
 
+function escaparHtml(texto){
+  return String(texto??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+
+function mostrarDiferencas(validacao,plano){
+  const dialog=$('#dialog-diferencas');
+  if(!dialog||!plano)return;
+
+  const antes=validacao?.antes||{problemas:estado.analiseBase?.problemas?.length??estado.analise?.problemas?.length??0,criticos:estado.analiseBase?.criticos??estado.analise?.criticos??0};
+  const depois=validacao?.depois||{problemas:estado.analise?.problemas?.length??0,criticos:estado.analise?.criticos??0};
+
+  $('#diff-antes').textContent=antes.problemas??'—';
+  $('#diff-depois').textContent=depois.problemas??'—';
+  $('#diff-criticos-antes').textContent=antes.criticos??'—';
+  $('#diff-criticos-depois').textContent=depois.criticos??'—';
+
+  const lista=$('#lista-diferencas');
+  lista.replaceChildren();
+
+  if(!plano.itens.length){
+    const vazio=document.createElement('p');
+    vazio.className='sem-dados';
+    vazio.textContent='Nenhuma alteração de código foi necessária para esta versão.';
+    lista.appendChild(vazio);
+  }
+
+  for(const item of plano.itens){
+    const artigo=document.createElement('article');
+    artigo.className='item-diferenca';
+    artigo.innerHTML=`
+      <header>
+        <span>${escaparHtml(item.tipo)}</span>
+        <b>${escaparHtml(item.seletor||'regra global')}</b>
+        <small>${escaparHtml(item.titulo||'correção')}</small>
+      </header>
+      <div class="corpo-diff">
+        <div class="lado antes"><span>Antes / problema</span><pre></pre></div>
+        <div class="lado depois"><span>Depois / aplicado</span><pre></pre></div>
+      </div>
+      <footer>${escaparHtml(item.explicacao||'')}</footer>
+    `;
+    artigo.querySelector('.antes pre').textContent=(item.antes||[]).map(x=>'- '+x).join('\n');
+    artigo.querySelector('.depois pre').textContent=(item.depois||[]).map(x=>'+ '+x).join('\n');
+    lista.appendChild(artigo);
+  }
+
+  $('#codigo-diferencas').textContent=estado.cssCorrecao||plano.css||'';
+  estado.diferencas={validacao,plano,css:estado.cssCorrecao||plano.css||''};
+
+  $$('[data-aba-diff]').forEach(b=>b.classList.toggle('ativa',b.dataset.abaDiff==='resumo'));
+  $$('[data-painel-diff]').forEach(p=>p.classList.toggle('ativo',p.dataset.painelDiff==='resumo'));
+
+  if(!dialog.open)dialog.showModal();
+}
+
 async function gerarVersao(){
   if(!estado.projeto)return;
   const btn=$('#gerar-versao');btn.disabled=true;status('gerando nova versão','original preservado');
   try{
+    const analiseAntes=estado.analiseBase||estado.analise||analisador.analisarAtual();
+    const fraturasAntes=[...estado.fraturas];
+    const plano=estado.planoCorrecao||descreverCorrecoes(analiseAntes.problemas,{largura:estado.largura,fraturas:fraturasAntes});
+    if($('#auto-ajustes').checked&&!estado.cssCorrecao)estado.cssCorrecao=plano.css;
+
     const validacao=await validarCorrecoesCompleto();
     if(!validacao.aceita) throw new Error(`Correção rejeitada: ${validacao.antes.criticos} → ${validacao.depois.criticos} rupturas críticas.`);
+
     await persistirCorrecoes();
+
     const projetoRelatorio={id:estado.projeto.id,nome:estado.projeto.nome,entrada:estado.projeto.entrada,quantidadeArquivos:estado.projeto.quantidadeArquivos};
-    const relatorio={projeto:projetoRelatorio,analise:estado.analise,fraturas:estado.fraturas,historico:estado.historico,correcoesAtivas:$('#auto-ajustes').checked,validacao,geradoEm:new Date().toISOString()};
+    const diferencas={
+      breakpoint:plano.breakpoint,
+      breakpointEstrutural:plano.breakpointEstrutural,
+      itens:plano.itens,
+      css:$('#auto-ajustes').checked?estado.cssCorrecao:'',
+      validacao
+    };
+    const relatorio={
+      projeto:projetoRelatorio,
+      analiseAntes,
+      analiseDepois:estado.analise,
+      fraturas:estado.fraturas,
+      historico:estado.historico,
+      correcoesAtivas:$('#auto-ajustes').checked,
+      validacao,
+      diferencas,
+      geradoEm:new Date().toISOString()
+    };
+
     if(estado.projeto.local){
       await exportarProjetoLocal(estado.projeto,$('#auto-ajustes').checked?estado.cssCorrecao:'',relatorio);
     }else{
       await fetch(`/api/projetos/${estado.projeto.id}/relatorio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:relatorio})});
       const link=document.createElement('a');link.href=`/api/projetos/${estado.projeto.id}/exportar`;link.download='';document.body.appendChild(link);link.click();link.remove();
     }
-    toast('Nova versão gerada','ZIP + relatório, sem alterar o original');
+
+    mostrarDiferencas(validacao,plano);
+    toast('Nova versão gerada','compare as alterações antes de usar o ZIP');
   }catch(e){toast('Não consegui exportar',e.message);}
   finally{btn.disabled=false;status('', '', false);}
 }
@@ -411,14 +500,17 @@ function aplicarAutoAjustes(){
   if(!estado.projeto)return;
   if($('#auto-ajustes').checked){
     const antes=analisador.analisarAtual();
-    const css=gerarCorrecoes(antes.problemas,{largura:estado.largura,fraturas:estado.fraturas});estado.cssCorrecao=css;aplicarNoPreview(preview,css);
+    estado.analiseBase=antes;
+    estado.planoCorrecao=descreverCorrecoes(antes.problemas,{largura:estado.largura,fraturas:estado.fraturas});
+    estado.cssCorrecao=estado.planoCorrecao.css;
+    aplicarNoPreview(preview,estado.cssCorrecao);
     setTimeout(()=>{
       const depois=analisador.analisarAtual();
       if(depois.problemas.length>antes.problemas.length){
         limparPreview(preview);estado.cssCorrecao='';$('#auto-ajustes').checked=false;renderizarAnalise(antes,true);toast('Correção revertida','ela criou novos problemas');
       }else{renderizarAnalise(depois,true);toast('Ajustes aplicados',`${Math.max(0,antes.problemas.length-depois.problemas.length)} problema(s) removido(s)`);}
     },120);
-  }else{limparPreview(preview);estado.cssCorrecao='';setTimeout(()=>executarAnalise(true),80);}
+  }else{limparPreview(preview);estado.cssCorrecao='';estado.analiseBase=null;estado.planoCorrecao=null;setTimeout(()=>executarAnalise(true),80);}
 }
 
 function configurarImportacao(){
@@ -531,6 +623,16 @@ function configurarNavegacao(){
   });
   $('#auto-ajustes').addEventListener('change',aplicarAutoAjustes);
   $('#gerar-versao').addEventListener('click',gerarVersao);
+  $('#fechar-diferencas')?.addEventListener('click',()=>$('#dialog-diferencas').close());
+  $('[data-aba-diff]').forEach(b=>b.addEventListener('click',()=>{
+    $('[data-aba-diff]').forEach(x=>x.classList.toggle('ativa',x===b));
+    $('[data-painel-diff]').forEach(p=>p.classList.toggle('ativo',p.dataset.painelDiff===b.dataset.abaDiff));
+  }));
+  $('#copiar-css')?.addEventListener('click',async()=>{
+    const css=$('#codigo-diferencas')?.textContent||'';
+    try{await navigator.clipboard.writeText(css);toast('CSS copiado','aurora-correcoes.css');}
+    catch{toast('Não consegui copiar','selecione o código manualmente');}
+  });
   $('#modo-foco').addEventListener('click',()=>document.body.classList.toggle('modo-foco'));
   addEventListener('keydown',e=>{if(e.key==='F2'){e.preventDefault();document.body.classList.toggle('modo-foco');}});
 
