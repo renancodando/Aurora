@@ -517,7 +517,8 @@ export class AuroraAnalise{
     const criticos=unicos.filter(p=>p.severidade==='critico'&&!p.ignorarCorrecao).length;
     const avisos=unicos.filter(p=>p.severidade==='aviso').length;
     const infos=unicos.filter(p=>p.severidade==='info').length;
-    const penalidade=Math.min(100,criticos*14+avisos*3+(globalOverflow?12:0));
+    const temCausaOverflow=unicos.some(p=>p.tipo==='overflow'&&!p.ignorarCorrecao);
+    const penalidade=Math.min(100,criticos*14+avisos*3+(globalOverflow&&!temCausaOverflow?8:0));
     const metricas={
       imagens,
       animacoes,
