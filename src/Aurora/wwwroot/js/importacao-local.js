@@ -1,4 +1,6 @@
-const CACHE='aurora-projetos-v1';
+const CACHE='aurora-projetos-v2';
+const BASE_URL=new URL('./',location.href);
+const BASE_PATH=BASE_URL.pathname;
 
 const tipos={
   html:'text/html;charset=utf-8',htm:'text/html;charset=utf-8',css:'text/css;charset=utf-8',js:'text/javascript;charset=utf-8',mjs:'text/javascript;charset=utf-8',
@@ -31,7 +33,7 @@ function idProjeto(){
 
 async function garantirWorker(){
   if(!('serviceWorker'in navigator))throw new Error('Este navegador não permite o workspace local do AURORA.');
-  await navigator.serviceWorker.register('/aurora-sw.js',{scope:'/'});
+  await navigator.serviceWorker.register(new URL('aurora-sw.js',BASE_URL).pathname,{scope:BASE_PATH});
   await navigator.serviceWorker.ready;
   if(!navigator.serviceWorker.controller){
     await new Promise(resolve=>{
@@ -63,7 +65,7 @@ async function publicar(arquivos,nome,entrada){
     const path=original.slice(base.length)||'index.html';
     const blob=arq.blob instanceof Blob?arq.blob:new Blob([arq.blob]);
     const resposta=new Response(blob,{headers:{'Content-Type':tipo(path),'Cache-Control':'no-store'}});
-    const url=new URL('/__aurora__/'+id+'/'+path,location.origin);
+    const url=new URL('__aurora__/'+id+'/'+path,BASE_URL);
     await cache.put(url.toString(),resposta);
     publicados.push({path,blob});
   }
@@ -75,7 +77,7 @@ async function publicar(arquivos,nome,entrada){
     nome:nomeProjeto(nome),
     entrada,
     quantidadeArquivos:publicados.length,
-    urlPreview:'/__aurora__/'+id+'/index.html',
+    urlPreview:new URL('__aurora__/'+id+'/index.html',BASE_URL).pathname,
     local:true,
     arquivos:publicados
   };
@@ -156,7 +158,8 @@ export async function importarUrlLocal(url){
     html=await direta.text();
     finalUrl=direta.url||finalUrl;
   }catch{
-    const proxy=await fetch('/api/proxy-url?url='+encodeURIComponent(finalUrl));
+    if(location.hostname.endsWith('github.io'))throw new Error('No GitHub Pages, a importação por URL depende do CORS do site. Use ZIP, Pasta, GitHub ou abra a versão da Vercel para URLs bloqueadas.');
+    const proxy=await fetch(new URL('api/proxy-url?url='+encodeURIComponent(finalUrl),location.origin+'/'));
     const dados=await proxy.json().catch(()=>({}));
     if(!proxy.ok)throw new Error(dados.erro||'A página bloqueou a importação por URL.');
     html=dados.html||'';
