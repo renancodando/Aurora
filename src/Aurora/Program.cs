@@ -16,7 +16,7 @@ builder.Services.Configure<FormOptions>(opcoes =>
 var raizWorkspace = Path.Combine(builder.Environment.ContentRootPath, ".aurora-workspace");
 Directory.CreateDirectory(raizWorkspace);
 builder.Services.AddSingleton(new ProjetoService(raizWorkspace));
-builder.Services.AddHttpClient<InteligenciaLayoutService>();
+builder.Services.AddHttpClient<InteligenciaLayoutService>(cliente => cliente.Timeout = TimeSpan.FromSeconds(18));
 builder.Services.AddRateLimiter(opcoes =>
 {
     opcoes.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
