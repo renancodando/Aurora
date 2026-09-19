@@ -118,6 +118,25 @@ export async function exportarProjetoLocal(projeto,css='',relatorio={}){
 
   if(css)zip.file('aurora-correcoes.css',css);
   zip.file('aurora-relatorio.json',JSON.stringify(relatorio,null,2));
+  if(relatorio.diferencas){
+    zip.file('aurora-diferencas.json',JSON.stringify(relatorio.diferencas,null,2));
+    const linhas=['# Diferenças geradas pelo AURORA',''];
+    for(const item of relatorio.diferencas.itens||[]){
+      linhas.push('## '+(item.seletor||item.titulo||'Correção'));
+      linhas.push('');
+      linhas.push('Problema: '+(item.titulo||item.tipo||'ajuste responsivo'));
+      linhas.push('');
+      linhas.push('Antes:');
+      for(const x of item.antes||[])linhas.push('- '+x);
+      linhas.push('');
+      linhas.push('Depois:');
+      for(const x of item.depois||[])linhas.push('- '+x);
+      linhas.push('');
+      if(item.explicacao)linhas.push('Como foi corrigido: '+item.explicacao);
+      linhas.push('');
+    }
+    zip.file('aurora-diferencas.md',linhas.join('\n'));
+  }
   const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
