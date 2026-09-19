@@ -270,3 +270,10 @@ body.modo-foco .estacao{grid-template-columns:minmax(0,1fr)}
   .item-diferenca .corpo-diff{grid-template-columns:1fr}
   .item-diferenca .lado+ .lado{border-left:0;border-top:1px solid var(--linha)}
 }
+
+.problema.inteligente{border-left:1px solid #6f675a;padding-left:9px}
+.problema.inteligente i{background:var(--acento)}
+.problema.intencional{border-left:1px solid #536557;padding-left:9px;background:#151a17}
+.problema.intencional i{background:var(--sucesso)}
+.problema.intencional b{color:#b9c9b8}
+.problema.intencional small{color:#8fa091}
