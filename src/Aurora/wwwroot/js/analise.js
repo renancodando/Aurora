@@ -121,6 +121,24 @@ function timingNavegacao(win){
   }catch{return null;}
 }
 
+function resumoEstrutural(el){
+  const nome=no=>{
+    if(!no?.tagName)return '';
+    const id=no.id?`#${no.id}`:'';
+    const classes=[...no.classList].slice(0,4).map(x=>'.'+x).join('');
+    const role=no.getAttribute('role');
+    return `${no.tagName.toLowerCase()}${id}${classes}${role?`[role="${role}"]`:''}`;
+  };
+
+  const filhos=[...el.children].slice(0,12).map(nome).filter(Boolean);
+  const pai=el.parentElement?nome(el.parentElement):'';
+  return [
+    `elemento: ${nome(el)}`,
+    pai?`pai: ${pai}`:'',
+    filhos.length?`filhos: ${filhos.join(', ')}`:'sem filhos diretos'
+  ].filter(Boolean).join('\n');
+}
+
 function contextoDeOverflow(el,cs,r,win,largura){
   const ancestrais=[];
   const evidencias=[];
@@ -199,7 +217,7 @@ function contextoDeOverflow(el,cs,r,win,largura){
     evidencias.push('elemento pequeno está fora da viewport por posição, não por tamanho');
   }
 
-  const html=(el.outerHTML||'').slice(0,3200);
+  const html=resumoEstrutural(el);
   const css=[
     'display:'+cs.display,
     'position:'+cs.position,
