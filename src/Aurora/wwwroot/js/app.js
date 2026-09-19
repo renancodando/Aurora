@@ -459,14 +459,59 @@ async function persistirCorrecoes(){
   if(!r.ok) throw new Error((await r.json()).erro || 'Não consegui salvar as correções.');
 }
 
+function largurasCriticasValidacao(){
+  const extras=new Set();
+
+  for(const p of estado.problemasVarredura||[]){
+    const ultima=Number(p.ultimaLargura);
+    const segura=Number(p.proximaLarguraSegura);
+    const limite=Number(p.limiteNatural);
+
+    if(Number.isFinite(ultima)){
+      [ultima-1,ultima,ultima+1].forEach(x=>extras.add(Math.round(x)));
+    }
+
+    if(Number.isFinite(segura)&&Number.isFinite(ultima)&&segura>ultima){
+      extras.add(Math.round((ultima+segura)/2));
+      extras.add(Math.round(segura-1));
+      extras.add(Math.round(segura));
+      extras.add(Math.round(segura+1));
+    }
+
+    if(Number.isFinite(limite)){
+      [limite-2,limite-1,limite,limite+1,limite+2].forEach(x=>extras.add(Math.round(x)));
+    }
+  }
+
+  const regex=/@media\s*\(\s*max-width\s*:\s*(\d+(?:\.\d+)?)px\s*\)/gi;
+  let match;
+  while((match=regex.exec(estado.cssCorrecao||''))){
+    const bp=Number(match[1]);
+    [-2,-1,0,1,2,8,16,32,48,64,96].forEach(delta=>extras.add(Math.round(bp+delta)));
+  }
+
+  return [...extras].filter(x=>x>=280&&x<=3440).sort((a,b)=>a-b);
+}
+
 async function validarCorrecoesCompleto(){
   if(!estado.cssCorrecao) return {aceita:true,semCorrecoes:true};
   const largura=estado.largura,altura=estado.altura;
-  status('validando correções','comparando a linha responsiva inteira');
+  const largurasExtras=largurasCriticasValidacao();
+  status('validando correções',`linha inteira + ${largurasExtras.length} pontos críticos`);
   limparPreview(preview);
-  const base=await analisador.varrer({definirViewport:aplicarViewport,larguraAtual:largura,alturaAtual:altura});
+  const base=await analisador.varrer({
+    definirViewport:aplicarViewport,
+    larguraAtual:largura,
+    alturaAtual:altura,
+    largurasExtras
+  });
   aplicarNoPreview(preview,estado.cssCorrecao);
-  const corrigido=await analisador.varrer({definirViewport:aplicarViewport,larguraAtual:largura,alturaAtual:altura});
+  const corrigido=await analisador.varrer({
+    definirViewport:aplicarViewport,
+    larguraAtual:largura,
+    alturaAtual:altura,
+    largurasExtras
+  });
 
   const somar=resultado=>resultado.estados.reduce((acc,x)=>({
     problemas:acc.problemas+x.problemas,
@@ -484,14 +529,29 @@ async function validarCorrecoesCompleto(){
   if(!aceita){
     limparPreview(preview);estado.cssCorrecao='';$('#auto-ajustes').checked=false;
     await aplicarViewport(largura,altura,true);executarAnalise(true);
-    return {aceita:false,antes,depois,motivo:antes.responsivos===depois.responsivos?'nenhuma melhora responsiva real':'a correção criou regressão'};
+    return {
+      aceita:false,
+      antes,
+      depois,
+      fraturasAntes:base.fraturas,
+      fraturasDepois:corrigido.fraturas,
+      largurasExtras,
+      motivo:antes.responsivos===depois.responsivos?'nenhuma melhora responsiva real':'a correção criou regressão'
+    };
   }
 
   estado.fraturas=corrigido.fraturas;
   estado.problemasVarredura=corrigido.problemasResponsivos||[];
   renderizarFraturas();
   await aplicarViewport(largura,altura,true);executarAnalise(true);
-  return {aceita:true,antes,depois};
+  return {
+    aceita:true,
+    antes,
+    depois,
+    fraturasAntes:base.fraturas,
+    fraturasDepois:corrigido.fraturas,
+    largurasExtras
+  };
 }
 
 function escaparHtml(texto){
