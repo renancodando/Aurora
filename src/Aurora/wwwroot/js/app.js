@@ -28,6 +28,7 @@ const estado = {
   analiseBase:null,
   planoCorrecao:null,
   diferencas:null,
+  problemasVarredura:[],
   iaStatus:'aguardando',
   iaDetalhe:'aguardando casos ambíguos'
 };
@@ -145,7 +146,7 @@ async function importar(endpoint, body, tipo='form'){
 
 async function carregarProjeto(manifesto){
   estado.projeto=manifesto;
-  estado.cssCorrecao=''; estado.fraturas=[]; estado.historico=[]; estado.analiseBase=null; estado.planoCorrecao=null; estado.diferencas=null; estado.iaStatus='aguardando'; estado.iaDetalhe='aguardando casos ambíguos';
+  estado.cssCorrecao=''; estado.fraturas=[]; estado.historico=[]; estado.analiseBase=null; estado.planoCorrecao=null; estado.diferencas=null; estado.problemasVarredura=[]; estado.iaStatus='aguardando'; estado.iaDetalhe='aguardando casos ambíguos';
   limparCacheInteligencia();
   $('#campo-origem').value=`${manifesto.nome} · ${manifesto.entrada}`;
   $('#estado-vazio').hidden=true;
@@ -428,6 +429,7 @@ async function varreduraCompleta(){
       progresso:(p,w)=>status('varredura completa',`${Math.round(p*100)}% · ${w}px`)
     });
     estado.fraturas=resultado.fraturas;
+    estado.problemasVarredura=resultado.problemasResponsivos||[];
     renderizarFraturas();
     renderizarAnalise(resultado.atual,true);
     agendarInteligencia(resultado.atual,true,180);
@@ -453,22 +455,36 @@ async function persistirCorrecoes(){
 }
 
 async function validarCorrecoesCompleto(){
-  if(!estado.cssCorrecao) return {aceita:true};
+  if(!estado.cssCorrecao) return {aceita:true,semCorrecoes:true};
   const largura=estado.largura,altura=estado.altura;
   status('validando correções','comparando a linha responsiva inteira');
   limparPreview(preview);
   const base=await analisador.varrer({definirViewport:aplicarViewport,larguraAtual:largura,alturaAtual:altura});
   aplicarNoPreview(preview,estado.cssCorrecao);
   const corrigido=await analisador.varrer({definirViewport:aplicarViewport,larguraAtual:largura,alturaAtual:altura});
-  const somar=resultado=>resultado.estados.reduce((acc,x)=>({problemas:acc.problemas+x.problemas,criticos:acc.criticos+x.criticos}),{problemas:0,criticos:0});
+
+  const somar=resultado=>resultado.estados.reduce((acc,x)=>({
+    problemas:acc.problemas+x.problemas,
+    responsivos:acc.responsivos+x.responsivos,
+    criticos:acc.criticos+x.criticos
+  }),{problemas:0,responsivos:0,criticos:0});
+
   const antes=somar(base),depois=somar(corrigido);
-  const aceita=depois.criticos<antes.criticos || (depois.criticos===antes.criticos && depois.problemas<=antes.problemas);
+  const melhorouResponsivo=
+    depois.criticos<antes.criticos ||
+    (depois.criticos===antes.criticos && depois.responsivos<antes.responsivos);
+  const naoPiorouTotal=depois.problemas<=antes.problemas;
+  const aceita=melhorouResponsivo&&naoPiorouTotal;
+
   if(!aceita){
     limparPreview(preview);estado.cssCorrecao='';$('#auto-ajustes').checked=false;
     await aplicarViewport(largura,altura,true);executarAnalise(true);
-    return {aceita:false,antes,depois};
+    return {aceita:false,antes,depois,motivo:antes.responsivos===depois.responsivos?'nenhuma melhora responsiva real':'a correção criou regressão'};
   }
-  estado.fraturas=corrigido.fraturas;renderizarFraturas();
+
+  estado.fraturas=corrigido.fraturas;
+  estado.problemasVarredura=corrigido.problemasResponsivos||[];
+  renderizarFraturas();
   await aplicarViewport(largura,altura,true);executarAnalise(true);
   return {aceita:true,antes,depois};
 }
@@ -528,15 +544,56 @@ function mostrarDiferencas(validacao,plano){
   if(!dialog.open)dialog.showModal();
 }
 
+function juntarProblemasParaCorrecao(atual,varredura){
+  const mapa=new Map();
+  for(const p of [...(atual||[]),...(varredura||[])]){
+    if(p.grupo!=='responsividade'&&p.grupo!==undefined)continue;
+    if(p.ignorarCorrecao)continue;
+    const chave=`${p.tipo}|${p.seletor}`;
+    const existente=mapa.get(chave);
+    if(!existente){
+      mapa.set(chave,p);
+      continue;
+    }
+    const excessoAtual=Number(p.maiorExcesso||0);
+    const excessoExistente=Number(existente.maiorExcesso||0);
+    if(excessoAtual>excessoExistente)mapa.set(chave,p);
+  }
+  return [...mapa.values()];
+}
+
+async function garantirMapaResponsivo(){
+  if(estado.problemasVarredura.length)return;
+  status('mapeando responsividade','analisando 280 → 3440 px antes de gerar');
+  const largura=estado.largura,altura=estado.altura;
+  const resultado=await analisador.varrer({
+    definirViewport:aplicarViewport,
+    larguraAtual:largura,
+    alturaAtual:altura,
+    progresso:(p,w)=>status('mapeando responsividade',`${Math.round(p*100)}% · ${w}px`)
+  });
+  estado.fraturas=resultado.fraturas;
+  estado.problemasVarredura=resultado.problemasResponsivos||[];
+  renderizarFraturas();
+  await aplicarViewport(largura,altura,true);
+  renderizarAnalise(resultado.atual,true,false);
+}
+
 async function gerarVersao(){
   if(!estado.projeto)return;
   const btn=$('#gerar-versao');btn.disabled=true;status('gerando nova versão','original preservado');
   try{
+    await garantirMapaResponsivo();
     const analiseAntes=estado.analiseBase||estado.analise||analisador.analisarAtual();
     const fraturasAntes=[...estado.fraturas];
-    const plano=estado.planoCorrecao||descreverCorrecoes(analiseAntes.problemas,{largura:estado.largura,fraturas:fraturasAntes});
+    const problemasCorrecao=juntarProblemasParaCorrecao(analiseAntes.problemas,estado.problemasVarredura);
+    const plano=descreverCorrecoes(problemasCorrecao,{
+      largura:estado.largura,
+      fraturas:fraturasAntes,
+      problemasVarredura:estado.problemasVarredura
+    });
     estado.planoCorrecao=plano;
-    if(!estado.cssCorrecao)estado.cssCorrecao=plano.css;
+    estado.cssCorrecao=plano.css;
     if(estado.cssCorrecao){
       aplicarNoPreview(preview,estado.cssCorrecao);
       $('#auto-ajustes').checked=true;
