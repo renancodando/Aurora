@@ -565,8 +565,12 @@ export class AuroraAnalise{
     return resultado;
   }
 
-  async varrer({definirViewport,larguraAtual,alturaAtual,progresso}){
-    const bases=[280,320,360,375,390,412,430,480,540,600,640,720,768,820,900,960,1024,1120,1200,1280,1366,1440,1600,1920,2560,3440];
+  async varrer({definirViewport,larguraAtual,alturaAtual,progresso,largurasExtras=[]}){
+    const padrao=[280,320,360,375,390,412,430,480,540,600,640,720,768,820,900,960,1024,1120,1200,1280,1366,1440,1600,1920,2560,3440];
+    const bases=[...new Set([...padrao,...largurasExtras])]
+      .map(Number)
+      .filter(x=>Number.isFinite(x)&&x>=280&&x<=3440)
+      .sort((a,b)=>a-b);
     const estados=[];
     const problemasEncontrados=new Map();
 
@@ -595,7 +599,8 @@ export class AuroraAnalise{
         problemas:r.problemas.length,
         responsivos:responsive.length,
         criticos:responsive.filter(p=>p.severidade==='critico').length,
-        integridade:r.integridade
+        integridade:r.integridade,
+        chavesResponsivas:responsive.map(p=>`${p.tipo}|${p.seletor}`)
       });
       progresso?.((i+1)/bases.length,w);
     }
@@ -624,12 +629,24 @@ export class AuroraAnalise{
     await definirViewport(larguraAtual,alturaAtual,true);
     await espera(60);
     const atual=this.analisarAtual({marcar:false});
-    const problemasResponsivos=[...problemasEncontrados.values()].map(p=>({
-      ...p,
-      larguras:[...new Set(p.larguras)].sort((a,b)=>a-b),
-      primeiraLargura:Math.min(...p.larguras),
-      ultimaLargura:Math.max(...p.larguras)
-    }));
+    const problemasResponsivos=[...problemasEncontrados.entries()].map(([chave,p])=>{
+      const larguras=[...new Set(p.larguras)].sort((a,b)=>a-b);
+      const ultimaLargura=Math.max(...larguras);
+      const proximaSegura=estados.find(x=>x.largura>ultimaLargura&&!x.chavesResponsivas.includes(chave))?.largura||null;
+      const limiteNatural=fraturas
+        .map(x=>x.largura)
+        .filter(x=>x>=ultimaLargura&&(proximaSegura===null||x<=proximaSegura))
+        .sort((a,b)=>a-b)[0]||null;
+
+      return {
+        ...p,
+        larguras,
+        primeiraLargura:Math.min(...larguras),
+        ultimaLargura,
+        proximaLarguraSegura:proximaSegura,
+        limiteNatural
+      };
+    });
     return {estados,fraturas,atual,problemasResponsivos};
   }
 }
