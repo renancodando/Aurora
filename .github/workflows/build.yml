@@ -27,6 +27,70 @@ jobs:
           node --input-type=module --check < src/Aurora/wwwroot/js/correcoes.js
           node --input-type=module --check < src/Aurora/wwwroot/js/importacao-local.js
           node --input-type=module --check < src/Aurora/wwwroot/js/inteligencia-layout.js
+      - name: testa causa raiz e correção mínima
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { consolidarCausas } from './src/Aurora/wwwroot/js/analise.js'
+          import { descreverCorrecoes } from './src/Aurora/wwwroot/js/correcoes.js'
+
+          const raiz={
+            tipo:'overflow',
+            grupo:'responsividade',
+            titulo:'Elemento fora da viewport',
+            seletor:'body > main > section.painel',
+            severidade:'critico',
+            nodeId:1,
+            ancestralIds:[0],
+            causaProvavel:'largura-rigida',
+            rect:{x:20,width:980,right:1000},
+            dados:{widthPx:980,viewport:280,parentClientWidth:240},
+            larguraOcorrencia:280,
+            ultimaLargura:1024,
+            larguras:[280,320,360,412,768,960,1024],
+            maiorExcesso:720
+          }
+
+          const filho={
+            tipo:'overflow',
+            grupo:'responsividade',
+            titulo:'Elemento fora da viewport',
+            seletor:'body > main > section.painel > article:nth-of-type(1)',
+            severidade:'critico',
+            nodeId:2,
+            ancestralIds:[1,0],
+            rect:{x:20,width:326,right:346},
+            dados:{widthPx:326,viewport:280,parentClientWidth:326}
+          }
+
+          const larguraFilho={
+            tipo:'largura-fixa',
+            grupo:'responsividade',
+            titulo:'Largura rígida demais',
+            seletor:'body > main > section.painel > article:nth-of-type(1)',
+            severidade:'aviso',
+            nodeId:2,
+            ancestralIds:[1,0],
+            dados:{widthPx:326,viewport:280,parentClientWidth:240}
+          }
+
+          const consolidados=consolidarCausas([raiz,filho,larguraFilho])
+          if(consolidados.length!==1)throw new Error('sintomas descendentes não foram agrupados')
+          if(consolidados[0].afetadosDerivados!==2)throw new Error('contagem de sintomas derivados incorreta')
+
+          const plano=descreverCorrecoes(consolidados,{
+            largura:1200,
+            fraturas:[{largura:1029}]
+          })
+
+          if(plano.itens.length!==1)throw new Error('o plano deveria ter apenas uma causa raiz')
+          if(!plano.css.includes('section.painel'))throw new Error('causa raiz ausente no CSS')
+          if(!plano.css.includes('inline-size:min(100%,980px)'))throw new Error('correção mínima incorreta')
+          if(plano.css.includes('article:nth-of-type'))throw new Error('sintoma descendente foi corrigido indevidamente')
+          if(!plano.css.includes('@media (max-width:1029px)'))throw new Error('breakpoint natural não foi usado')
+          if(!plano.itens[0].antes.some(x=>x.includes('280px')))throw new Error('relatório não usa a viewport real do erro')
+          NODE
+
       - name: teste rápido
         shell: bash
         run: |
