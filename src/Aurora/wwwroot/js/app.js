@@ -206,7 +206,8 @@ function problemasDoModo(r){
 
 function tituloDoModo(r,problemas){
   const criticos=problemas.filter(p=>p.severidade==='critico').length;
-  const avisos=problemas.length-criticos;
+  const avisos=problemas.filter(p=>p.severidade==='aviso').length;
+  const informativos=problemas.filter(p=>p.severidade==='info').length;
   const mapa={
     layout:['Layout','estrutura atual da viewport'],
     responsividade:['Responsividade',estado.fraturas.length?`${estado.fraturas.length} breakpoint(s) natural(is) localizado(s)`:'varra de 280 a 3440 px para localizar as fraturas'],
@@ -216,9 +217,10 @@ function tituloDoModo(r,problemas){
   const [nome,descricao]=mapa[estado.modoAnalise];
   return {
     titulo:criticos?`${nome} com problemas críticos`:avisos?`${nome} com pontos de atenção`:`${nome} estável`,
-    subtitulo:problemas.length?`${problemas.length} ocorrência(s) · ${descricao}`:descricao,
+    subtitulo:problemas.length?`${criticos+avisos} problema(s) · ${informativos} comportamento(s) preservado(s) · ${descricao}`:descricao,
     criticos,
-    avisos
+    avisos,
+    informativos
   };
 }
 
