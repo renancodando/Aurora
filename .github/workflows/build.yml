@@ -109,3 +109,6 @@ jobs:
           (cd /tmp/site && zip -q /tmp/site.zip index.html)
           curl -fsS -F arquivo=@/tmp/site.zip http://127.0.0.1:5187/api/projetos/zip > /tmp/import.json
           grep -q '"id"' /tmp/import.json
+          CODE=$(curl -sS -o /tmp/ssrf.json -w "%{http_code}" -H "Content-Type: application/json" -d '{"url":"http://127.0.0.1:5187"}' http://127.0.0.1:5187/api/projetos/url)
+          test "$CODE" = "400"
+          grep -qi "privado" /tmp/ssrf.json
