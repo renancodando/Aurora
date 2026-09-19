@@ -22,10 +22,18 @@ function breakpointDoProblema(p,contexto){
   if(base<=0)return null;
   if(base>=3438)return null;
 
+  const limite=numero(p?.limiteNatural,NaN);
+  if(Number.isFinite(limite)&&limite>=base)
+    return Math.min(3440,Math.round(limite));
+
+  const segura=numero(p?.proximaLarguraSegura,NaN);
+  if(Number.isFinite(segura)&&segura>=base)
+    return Math.min(3440,Math.round(segura));
+
   const fraturas=(contexto?.fraturas||[])
     .map(x=>numero(x?.largura,NaN))
     .filter(Number.isFinite)
-    .filter(x=>x>=base&&x<=base+180)
+    .filter(x=>x>=base&&x<=base+240)
     .sort((a,b)=>a-b);
 
   if(fraturas.length)return Math.min(3440,Math.round(fraturas[0]));
@@ -64,6 +72,8 @@ function descricaoAntes(p,contexto){
       `excesso aproximado: ${excesso}px`
     ];
     if(faixa)linhas.push(`detectado na faixa: ${faixa}`);
+    if(Number.isFinite(numero(p?.limiteNatural,NaN)))linhas.push(`limite natural estimado: ${Math.round(numero(p.limiteNatural))}px`);
+    else if(Number.isFinite(numero(p?.proximaLarguraSegura,NaN)))linhas.push(`primeira largura segura amostrada: ${Math.round(numero(p.proximaLarguraSegura))}px`);
     if(p.afetadosDerivados)linhas.push(`${p.afetadosDerivados} sintoma(s) descendente(s) agrupado(s) nesta causa`);
     return linhas;
   }
