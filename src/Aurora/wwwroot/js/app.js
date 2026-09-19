@@ -4,6 +4,7 @@ import { iniciarCeu } from './ceu.js';
 import { AuroraAnalise } from './analise.js';
 import { gerarCorrecoes, descreverCorrecoes, aplicarNoPreview, limparPreview } from './correcoes.js';
 import { importarZipLocal, importarPastaLocal, importarGitHubLocal, importarUrlLocal, exportarProjetoLocal } from './importacao-local.js';
+import { resolverAmbiguidades, limparCacheInteligencia } from './inteligencia-layout.js';
 
 iniciarAdaptiveEngine();
 
@@ -34,6 +35,8 @@ const analisador=new AuroraAnalise(preview);
 let ceuEngine=null;
 let ultimoCeuUi=0;
 let resizeInicio=null;
+let iaTimer=0;
+let iaExecucao=0;
 
 function status(texto,detalhe='',mostrar=true){
   const box=$('#status-flutuante');
@@ -141,6 +144,7 @@ async function importar(endpoint, body, tipo='form'){
 async function carregarProjeto(manifesto){
   estado.projeto=manifesto;
   estado.cssCorrecao=''; estado.fraturas=[]; estado.historico=[]; estado.analiseBase=null; estado.planoCorrecao=null; estado.diferencas=null;
+  limparCacheInteligencia();
   $('#campo-origem').value=`${manifesto.nome} · ${manifesto.entrada}`;
   $('#estado-vazio').hidden=true;
   $('#janela-preview').hidden=false;
@@ -229,10 +233,12 @@ function renderizarMetricasDesempenho(r,lista){
   }
 }
 
-function renderizarAnalise(r,marcar=true){
+function renderizarAnalise(r,marcar=true,registrarHistorico=true){
   estado.analise=r;
-  estado.historico.push({largura:r.largura,altura:r.altura,integridade:r.integridade,problemas:r.problemas.length,modo:estado.modoAnalise,quando:r.quando});
-  if(estado.historico.length>100)estado.historico.shift();
+  if(registrarHistorico){
+    estado.historico.push({largura:r.largura,altura:r.altura,integridade:r.integridade,problemas:r.problemas.length,modo:estado.modoAnalise,quando:r.quando});
+    if(estado.historico.length>100)estado.historico.shift();
+  }
 
   $('#integridade').textContent=`${r.integridade}%`;
   $('#anel-integridade').style.setProperty('--valor',r.integridade);
@@ -276,10 +282,14 @@ function renderizarAnalise(r,marcar=true){
 
   for(const prob of problemas.slice(0,22)){
     const b=document.createElement(prob.seletor?'button':'div');
-    b.className=`problema ${prob.severidade==='critico'?'critico':''}`;
+    const classeIA=prob.severidade==='info'?' intencional':prob.requerIA?' inteligente':'';
+    b.className=`problema ${prob.severidade==='critico'?'critico':''}${classeIA}`;
     b.innerHTML='<i></i><div><b></b><small></small></div><span>›</span>';
     b.querySelector('b').textContent=prob.titulo;
-    b.querySelector('small').textContent=prob.detalhe;
+    const infoIA=prob.ia
+      ?`IA · ${Math.round((Number(prob.ia.confianca)||0)*100)}% · ${prob.ia.modelo||'modelo inteligente'}`
+      :prob.requerIA?'aguardando revisão inteligente':'';
+    b.querySelector('small').textContent=[prob.detalhe,infoIA].filter(Boolean).join(' · ');
     if(prob.seletor)b.addEventListener('click',()=>focarProblema(prob));
     else b.querySelector('span').textContent='·';
     lista.appendChild(b);
@@ -324,9 +334,44 @@ function selecionarModoAnalise(modo,{executar=true}={}){
   else if(estado.analise)renderizarAnalise(estado.analise,true);
 }
 
+function agendarInteligencia(resultado,marcar=true,atraso=650){
+  clearTimeout(iaTimer);
+  const execucao=++iaExecucao;
+  if(!resultado?.problemas?.some(p=>p.requerIA&&!p.ia))return;
+
+  iaTimer=setTimeout(async()=>{
+    status('revisão inteligente','Gemma 4 avaliando casos ambíguos');
+    const resposta=await resolverAmbiguidades(resultado);
+    if(execucao!==iaExecucao)return;
+
+    if(resposta.alterado){
+      const resolvido=resposta.resultado;
+      estado.analise=resolvido;
+
+      if($('#auto-ajustes').checked){
+        estado.planoCorrecao=descreverCorrecoes(resolvido.problemas,{largura:estado.largura,fraturas:estado.fraturas});
+        estado.cssCorrecao=estado.planoCorrecao.css;
+        aplicarNoPreview(preview,estado.cssCorrecao);
+      }
+
+      renderizarAnalise(resolvido,marcar,false);
+      const preservados=resolvido.problemas.filter(p=>p.ia?.classificacao==='comportamento_intencional').length;
+      const inconclusivos=resolvido.problemas.filter(p=>p.ia?.classificacao==='ambiguo').length;
+      toast('Revisão inteligente concluída',`${preservados} intencional(is) preservado(s) · ${inconclusivos} inconclusivo(s)`);
+      return;
+    }
+
+    status('', '', false);
+  },atraso);
+}
+
 function executarAnalise(marcar=true){
   if(!estado.projeto)return;
-  try{renderizarAnalise(analisador.analisarAtual({marcar}),marcar);}catch(e){toast('Análise indisponível',e.message);}
+  try{
+    const resultado=analisador.analisarAtual({marcar});
+    renderizarAnalise(resultado,marcar);
+    agendarInteligencia(resultado,marcar);
+  }catch(e){toast('Análise indisponível',e.message);}
 }
 
 function focarProblema(prob){
@@ -352,6 +397,7 @@ async function varreduraCompleta(){
     estado.fraturas=resultado.fraturas;
     renderizarFraturas();
     renderizarAnalise(resultado.atual,true);
+    agendarInteligencia(resultado.atual,true,180);
     toast('Varredura concluída',`${resultado.fraturas.length} limites naturais encontrados`);
   }catch(e){toast('A varredura parou',e.message);}
   finally{botao.disabled=false;status('', '', false);}
