@@ -25,7 +25,7 @@ public static class ZipSeguro
             if (string.IsNullOrWhiteSpace(entrada.FullName))
                 continue;
 
-            var partes = entrada.FullName.Replace('\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var partes = entrada.FullName.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
             if (partes.Any(p => PastasIgnoradas.Contains(p, StringComparer.OrdinalIgnoreCase)))
                 continue;
 
