@@ -27,7 +27,9 @@ const estado = {
   modoAnalise:'layout',
   analiseBase:null,
   planoCorrecao:null,
-  diferencas:null
+  diferencas:null,
+  iaStatus:'aguardando',
+  iaDetalhe:'aguardando casos ambíguos'
 };
 
 const preview=$('#preview');
@@ -143,7 +145,7 @@ async function importar(endpoint, body, tipo='form'){
 
 async function carregarProjeto(manifesto){
   estado.projeto=manifesto;
-  estado.cssCorrecao=''; estado.fraturas=[]; estado.historico=[]; estado.analiseBase=null; estado.planoCorrecao=null; estado.diferencas=null;
+  estado.cssCorrecao=''; estado.fraturas=[]; estado.historico=[]; estado.analiseBase=null; estado.planoCorrecao=null; estado.diferencas=null; estado.iaStatus='aguardando'; estado.iaDetalhe='aguardando casos ambíguos';
   limparCacheInteligencia();
   $('#campo-origem').value=`${manifesto.nome} · ${manifesto.entrada}`;
   $('#estado-vazio').hidden=true;
@@ -170,6 +172,16 @@ function desenharMarcacoes(problemas){
     Object.assign(d.style,{left:`${p.rect.x}px`,top:`${p.rect.y}px`,width:`${p.rect.width}px`,height:`${p.rect.height}px`});
     camada.appendChild(d);
   }
+}
+
+function atualizarEstadoInteligencia(tipo,texto){
+  estado.iaStatus=tipo;
+  estado.iaDetalhe=texto;
+  const el=$('#estado-inteligencia');
+  if(!el)return;
+  el.className='estado-inteligencia'+(tipo==='analisando'?' analisando':tipo==='ativa'?' ativa':tipo==='indisponivel'?' indisponivel':'');
+  const span=el.querySelector('span');
+  if(span)span.textContent='IA: '+texto;
 }
 
 function problemasDoModo(r){
@@ -257,6 +269,10 @@ function renderizarAnalise(r,marcar=true,registrarHistorico=true){
   if(metricas)metricas.hidden=false;
 
   const problemas=problemasDoModo(r);
+  const temIA=r.problemas.some(p=>p.ia);
+  const esperaIA=r.problemas.some(p=>p.requerIA&&!p.ia);
+  if(temIA&&estado.iaStatus!=='analisando')atualizarEstadoInteligencia('ativa','ativa · decisões inteligentes aplicadas');
+  else if(!temIA&&!esperaIA&&estado.iaStatus!=='analisando')atualizarEstadoInteligencia('aguardando','sem casos ambíguos');
   const resumo=tituloDoModo(r,problemas);
   $('#contador-pontos').textContent=problemas.length;
 
@@ -288,7 +304,7 @@ function renderizarAnalise(r,marcar=true,registrarHistorico=true){
     b.querySelector('b').textContent=prob.titulo;
     const infoIA=prob.ia
       ?`IA · ${Math.round((Number(prob.ia.confianca)||0)*100)}% · ${prob.ia.modelo||'modelo inteligente'}`
-      :prob.requerIA?'aguardando revisão inteligente':'';
+      :prob.requerIA?(estado.iaStatus==='indisponivel'?'IA indisponível · preservado por segurança':'aguardando revisão inteligente'):'';
     b.querySelector('small').textContent=[prob.detalhe,infoIA].filter(Boolean).join(' · ');
     if(prob.seletor)b.addEventListener('click',()=>focarProblema(prob));
     else b.querySelector('span').textContent='·';
@@ -337,7 +353,12 @@ function selecionarModoAnalise(modo,{executar=true}={}){
 function agendarInteligencia(resultado,marcar=true,atraso=650){
   clearTimeout(iaTimer);
   const execucao=++iaExecucao;
-  if(!resultado?.problemas?.some(p=>p.requerIA&&!p.ia))return;
+  if(!resultado?.problemas?.some(p=>p.requerIA&&!p.ia)){
+    if(!resultado?.problemas?.some(p=>p.ia))atualizarEstadoInteligencia('aguardando','sem casos ambíguos');
+    return;
+  }
+
+  atualizarEstadoInteligencia('analisando','Gemma 4 analisando casos ambíguos');
 
   iaTimer=setTimeout(async()=>{
     status('revisão inteligente','Gemma 4 avaliando casos ambíguos');
@@ -357,10 +378,20 @@ function agendarInteligencia(resultado,marcar=true,atraso=650){
       renderizarAnalise(resolvido,marcar,false);
       const preservados=resolvido.problemas.filter(p=>p.ia?.classificacao==='comportamento_intencional').length;
       const inconclusivos=resolvido.problemas.filter(p=>p.ia?.classificacao==='ambiguo').length;
+      atualizarEstadoInteligencia('ativa',`ativa · ${preservados} preservado(s) · ${inconclusivos} inconclusivo(s)`);
       toast('Revisão inteligente concluída',`${preservados} intencional(is) preservado(s) · ${inconclusivos} inconclusivo(s)`);
       return;
     }
 
+    if(resposta.estado==='github-pages'){
+      atualizarEstadoInteligencia('indisponivel','segura apenas na Vercel/local com chaves');
+      renderizarAnalise(resultado,marcar,false);
+    }else if(resposta.estado==='indisponivel'){
+      atualizarEstadoInteligencia('indisponivel','não configurada ou temporariamente indisponível');
+      renderizarAnalise(resultado,marcar,false);
+    }else{
+      atualizarEstadoInteligencia('aguardando','nenhuma decisão recebida');
+    }
     status('', '', false);
   },atraso);
 }
