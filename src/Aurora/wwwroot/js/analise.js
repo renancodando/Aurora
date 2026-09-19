@@ -27,6 +27,67 @@ function retangulo(r){
   return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};
 }
 
+function idsAncestrais(el,ids,max=12){
+  const saida=[];
+  let atual=el.parentElement;
+  while(atual&&saida.length<max){
+    const id=ids.get(atual);
+    if(id!==undefined)saida.push(id);
+    atual=atual.parentElement;
+  }
+  return saida;
+}
+
+function consolidarCausas(problemas){
+  const overflowPorNo=new Map(
+    problemas
+      .filter(p=>p.tipo==='overflow'&&Number.isFinite(p.nodeId))
+      .map(p=>[p.nodeId,p])
+  );
+  const remover=new Set();
+
+  for(const p of problemas){
+    if(p.tipo!=='largura-fixa'||!Number.isFinite(p.nodeId))continue;
+    const overflow=overflowPorNo.get(p.nodeId);
+    if(!overflow)continue;
+    overflow.dados={...overflow.dados,widthPx:p.dados?.widthPx||overflow.dados?.widthPx};
+    overflow.causaProvavel='largura-rigida';
+    remover.add(p);
+  }
+
+  const raizDe=p=>{
+    for(const id of p.ancestralIds||[]){
+      const pai=overflowPorNo.get(id);
+      if(pai)return raizDe(pai);
+    }
+    return p;
+  };
+
+  for(const p of problemas){
+    if(!['overflow','largura-fixa'].includes(p.tipo)||!Number.isFinite(p.nodeId))continue;
+    const raiz=raizDe(p);
+    if(raiz===p)continue;
+    remover.add(p);
+    raiz.derivados=raiz.derivados||[];
+    raiz.derivados.push({
+      tipo:p.tipo,
+      seletor:p.seletor,
+      titulo:p.titulo
+    });
+  }
+
+  for(const p of overflowPorNo.values()){
+    if(p.derivados?.length){
+      const unicos=new Map(p.derivados.map(x=>[`${x.tipo}|${x.seletor}`,x]));
+      p.derivados=[...unicos.values()];
+      p.afetadosDerivados=p.derivados.length;
+      p.detalhe=`${p.detalhe} · ${p.afetadosDerivados} efeito(s) descendente(s) agrupado(s)`;
+    }
+  }
+
+  return problemas.filter(p=>!remover.has(p));
+}
+
 function nomeAcessivel(el,doc){
   const aria=(el.getAttribute('aria-label')||'').trim();
   if(aria)return aria;
@@ -195,6 +256,9 @@ export class AuroraAnalise{
     const altura=win.innerHeight||this.iframe.clientHeight;
     const problemas=[];
     const elementos=[...doc.querySelectorAll('body *')];
+    const ids=new WeakMap();
+    ids.set(doc.body,0);
+    elementos.forEach((el,i)=>ids.set(el,i+1));
 
     let visiveis=0;
     let ocultos=0;
@@ -228,6 +292,9 @@ export class AuroraAnalise{
         const pai=el.parentElement;
         const pcs=pai?win.getComputedStyle(pai):null;
         const ambiguidade=contextoDeOverflow(el,cs,r,win,largura);
+        const widthPx=parseFloat(cs.width);
+        const espacoPai=pai?pai.clientWidth:largura;
+        const larguraRigida=Number.isFinite(widthPx)&&widthPx>espacoPai+1;
         problemas.push({
           tipo:'overflow',
           grupo:'responsividade',
@@ -239,8 +306,16 @@ export class AuroraAnalise{
           requerIA:ambiguidade.requerIA,
           ignorarCorrecao:ambiguidade.requerIA,
           contextoIA:ambiguidade.contextoIA,
+          nodeId:ids.get(el),
+          ancestralIds:idsAncestrais(el,ids),
+          causaProvavel:larguraRigida?'largura-rigida':'posicao-ou-estrutura',
           rect:retangulo(r),
-          dados:{largura:r.width,viewport:largura},
+          dados:{
+            largura:r.width,
+            viewport:largura,
+            widthPx:Number.isFinite(widthPx)?widthPx:null,
+            parentClientWidth:espacoPai
+          },
           contexto:{
             parentSelector:pai?seletor(pai):'',
             parentDisplay:pcs?.display||'',
@@ -340,16 +415,19 @@ export class AuroraAnalise{
       }
 
       const widthPx=parseFloat(cs.width);
-      if(foraX&&Number.isFinite(widthPx)&&widthPx>largura&&!['auto','none'].includes(cs.maxWidth)){
+      const espacoDisponivel=el.parentElement?el.parentElement.clientWidth:largura;
+      if(foraX&&Number.isFinite(widthPx)&&widthPx>espacoDisponivel+1&&!['auto','none'].includes(cs.maxWidth)){
         problemas.push({
           tipo:'largura-fixa',
           grupo:'responsividade',
           titulo:'Largura rígida demais',
-          detalhe:`${Math.round(widthPx)} px em viewport de ${largura} px`,
+          detalhe:`${Math.round(widthPx)} px em espaço disponível de ${Math.round(espacoDisponivel)} px`,
           seletor:sel,
           severidade:'aviso',
+          nodeId:ids.get(el),
+          ancestralIds:idsAncestrais(el,ids),
           rect:retangulo(r),
-          dados:{widthPx}
+          dados:{widthPx,viewport:largura,parentClientWidth:espacoDisponivel}
         });
       }
     }
@@ -362,7 +440,9 @@ export class AuroraAnalise{
         titulo:'Overflow horizontal',
         detalhe:`documento ${doc.documentElement.scrollWidth}px / viewport ${largura}px`,
         seletor:'html',
-        severidade:'critico',
+        severidade:'info',
+        resumo:true,
+        ignorarCorrecao:true,
         rect:null,
         dados:{scrollWidth:doc.documentElement.scrollWidth,viewport:largura}
       });
@@ -423,9 +503,10 @@ export class AuroraAnalise{
       });
     }
 
+    const consolidados=consolidarCausas(problemas);
     const unicos=[];
     const vistos=new Set();
-    for(const p of problemas){
+    for(const p of consolidados){
       const k=`${p.tipo}|${p.seletor}`;
       if(vistos.has(k))continue;
       vistos.add(k);
@@ -475,7 +556,7 @@ export class AuroraAnalise{
       await definirViewport(w,alturaAtual,true);
       await espera(54);
       const r=this.analisarAtual({marcar:false});
-      const responsive=r.problemas.filter(p=>p.grupo==='responsividade'&&!p.requerIA);
+      const responsive=r.problemas.filter(p=>p.grupo==='responsividade'&&!p.requerIA&&!p.resumo&&!p.derivado);
       for(const p of responsive){
         const chave=`${p.tipo}|${p.seletor}`;
         const existente=problemasEncontrados.get(chave);
@@ -514,7 +595,7 @@ export class AuroraAnalise{
         const mid=Math.round((lo+hi)/2);
         await definirViewport(mid,alturaAtual,true);
         await espera(36);
-        const qtd=this.analisarAtual({marcar:false}).problemas.filter(p=>p.grupo==='responsividade'&&!p.requerIA).length;
+        const qtd=this.analisarAtual({marcar:false}).problemas.filter(p=>p.grupo==='responsividade'&&!p.requerIA&&!p.resumo&&!p.derivado).length;
         if(qtd===base)lo=mid;
         else hi=mid;
       }
