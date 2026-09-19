@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using Aurora.Models;
 using Aurora.Services;
 using Microsoft.AspNetCore.Http.Features;
@@ -16,8 +17,42 @@ var raizWorkspace = Path.Combine(builder.Environment.ContentRootPath, ".aurora-w
 Directory.CreateDirectory(raizWorkspace);
 builder.Services.AddSingleton(new ProjetoService(raizWorkspace));
 builder.Services.AddHttpClient<InteligenciaLayoutService>();
+builder.Services.AddRateLimiter(opcoes =>
+{
+    opcoes.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    opcoes.AddPolicy("ia", contexto =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            contexto.Connection.RemoteIpAddress?.ToString() ?? "anonimo",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    opcoes.AddPolicy("importacao", contexto =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            contexto.Connection.RemoteIpAddress?.ToString() ?? "anonimo",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
 
 var app = builder.Build();
+
+app.Use(async (contexto, proximo) =>
+{
+    contexto.Response.Headers.XContentTypeOptions = "nosniff";
+    contexto.Response.Headers.ReferrerPolicy = "strict-origin-when-cross-origin";
+    contexto.Response.Headers.XFrameOptions = "DENY";
+    await proximo();
+});
+
+app.UseRateLimiter();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -32,7 +67,7 @@ app.MapPost("/api/projetos/zip", async (IFormFile arquivo, ProjetoService projet
 {
     try { return Results.Ok(await projetos.ImportarZipAsync(arquivo, ct)); }
     catch (Exception ex) { return Results.BadRequest(new { erro = ex.Message }); }
-}).DisableAntiforgery();
+}).DisableAntiforgery().RequireRateLimiting("importacao");
 
 app.MapPost("/api/projetos/pasta", async (HttpRequest request, ProjetoService projetos, CancellationToken ct) =>
 {
@@ -43,26 +78,26 @@ app.MapPost("/api/projetos/pasta", async (HttpRequest request, ProjetoService pr
         return Results.Ok(await projetos.ImportarPastaAsync(form.Files, caminhos, ct));
     }
     catch (Exception ex) { return Results.BadRequest(new { erro = ex.Message }); }
-}).DisableAntiforgery();
+}).DisableAntiforgery().RequireRateLimiting("importacao");
 
 app.MapPost("/api/projetos/url", async (ImportarUrlRequest pedido, ProjetoService projetos, CancellationToken ct) =>
 {
     try { return Results.Ok(await projetos.ImportarUrlAsync(pedido.Url, ct)); }
     catch (Exception ex) { return Results.BadRequest(new { erro = ex.Message }); }
-});
+}).RequireRateLimiting("importacao");
 
 app.MapPost("/api/projetos/github", async (ImportarGitHubRequest pedido, ProjetoService projetos, CancellationToken ct) =>
 {
     try { return Results.Ok(await projetos.ImportarGitHubAsync(pedido.Url, ct)); }
     catch (Exception ex) { return Results.BadRequest(new { erro = ex.Message }); }
-});
+}).RequireRateLimiting("importacao");
 
 app.MapPost("/api/inteligencia-layout", async (JsonElement pedido, InteligenciaLayoutService inteligencia, CancellationToken ct) =>
 {
     try { return Results.Ok(await inteligencia.AvaliarAsync(pedido, ct)); }
     catch (InvalidDataException ex) { return Results.BadRequest(new { erro = ex.Message }); }
     catch (Exception ex) { return Results.Json(new { erro = ex.Message }, statusCode: 503); }
-});
+}).RequireRateLimiting("ia");
 
 app.MapGet("/api/projetos/{id}", async (string id, ProjetoService projetos, CancellationToken ct) =>
 {
