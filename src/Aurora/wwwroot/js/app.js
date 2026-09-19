@@ -189,20 +189,25 @@ function problemasDoModo(r){
   if(!r)return [];
   if(estado.modoAnalise==='acessibilidade')return r.problemas.filter(p=>p.grupo==='acessibilidade');
   if(estado.modoAnalise==='desempenho')return r.problemas.filter(p=>p.grupo==='desempenho');
+
+  const responsivos=r.problemas.filter(p=>p.grupo==='responsividade');
+  const temCausa=responsivos.some(p=>!p.resumo);
+  const base=temCausa?responsivos.filter(p=>!p.resumo):responsivos;
+
   if(estado.modoAnalise==='responsividade'){
-    const base=r.problemas.filter(p=>p.grupo==='responsividade');
     const fraturas=estado.fraturas.map(f=>({
       tipo:'fratura',
       grupo:'responsividade',
       titulo:`Breakpoint natural em ${f.largura}px`,
-      detalhe:`${f.antes} → ${f.depois} problema(s) responsivo(s)`,
+      detalhe:`${f.antes} → ${f.depois} causa(s) responsiva(s)`,
       seletor:'',
       severidade:'aviso',
       rect:null
     }));
     return [...fraturas,...base];
   }
-  return r.problemas.filter(p=>p.grupo==='responsividade'||!p.grupo);
+
+  return [...base,...r.problemas.filter(p=>!p.grupo)];
 }
 
 function tituloDoModo(r,problemas){
