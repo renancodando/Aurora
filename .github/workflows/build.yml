@@ -89,6 +89,10 @@ jobs:
           if(plano.css.includes('article:nth-of-type'))throw new Error('sintoma descendente foi corrigido indevidamente')
           if(!plano.css.includes('@media (max-width:1029px)'))throw new Error('breakpoint natural não foi usado')
           if(!plano.itens[0].antes.some(x=>x.includes('280px')))throw new Error('relatório não usa a viewport real do erro')
+
+          const seguro={...raiz,limiteNatural:null,proximaLarguraSegura:1120}
+          const planoSeguro=descreverCorrecoes([seguro],{largura:1200,fraturas:[]})
+          if(!planoSeguro.css.includes('@media (max-width:1120px)'))throw new Error('fallback seguro deixou uma faixa de overflow sem cobertura')
           NODE
 
       - name: teste rápido
