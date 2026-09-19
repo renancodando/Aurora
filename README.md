@@ -72,6 +72,35 @@ medir
 
 O AURORA não remove conteúdo para fazer a interface caber.
 
+
+## Inteligência opcional
+
+O motor principal continua determinístico. A IA só entra quando o AURORA encontra um caso ambíguo, como ticker, marquee, carousel, slider, track animado, transformações ou overflow aparentemente intencional.
+
+Fluxo:
+
+```text
+medição local
+→ caso claro: AURORA decide sozinho
+→ caso ambíguo: Gemma 4 26B A4B no Cloudflare
+→ confiança abaixo de 88%: GPT-OSS 120B no Groq como segunda opinião
+→ se os modelos discordarem: não corrige automaticamente
+```
+
+As chaves nunca ficam no frontend. Na Vercel, configure estas Environment Variables:
+
+```text
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_API_TOKEN
+GROQ_API_KEY
+```
+
+O Cloudflare é o provedor principal. O Groq é opcional, mas recomendado como segunda opinião.
+
+Sem essas variáveis, o AURORA continua funcionando com o motor determinístico e preserva casos ambíguos em vez de corrigi-los no escuro.
+
+No GitHub Pages a IA segura fica desativada porque não existe backend para esconder as chaves. Use a versão da Vercel para a análise inteligente.
+
 ## Open-Meteo
 
 Durante o desenvolvimento o endpoint público funciona sem chave. O clima é atualizado a cada 15 minutos. Sol, Lua, fase lunar e movimento das estrelas continuam com cálculo local quando a meteorologia estiver indisponível.
