@@ -2,6 +2,8 @@ const MODELO_CF='@cf/google/gemma-4-26b-a4b-it';
 const MODELO_GROQ='openai/gpt-oss-120b';
 const LIMITE_CASOS=10;
 const LIMITE_TEXTO=4200;
+const LIMITE_PAYLOAD=70000;
+const limitePorIp=new Map();
 
 const schema={
   type:'object',
@@ -27,6 +29,32 @@ const schema={
   },
   required:['resultados']
 };
+
+function mesmaOrigem(req){
+  const origem=req.headers.origin;
+  const host=String(req.headers['x-forwarded-host']||req.headers.host||'').toLowerCase();
+  const fetchSite=String(req.headers['sec-fetch-site']||'').toLowerCase();
+
+  if(fetchSite&& !['same-origin','same-site','none'].includes(fetchSite))return false;
+  if(!origem)return process.env.VERCEL!=='1';
+
+  try{return new URL(origem).host.toLowerCase()===host;}
+  catch{return false;}
+}
+
+function dentroDoLimite(req){
+  const ip=String(req.headers['x-forwarded-for']||req.socket?.remoteAddress||'desconhecido').split(',')[0].trim();
+  const agora=Date.now();
+  const atual=limitePorIp.get(ip);
+
+  if(!atual||agora-atual.inicio>60*60*1000){
+    limitePorIp.set(ip,{inicio:agora,total:1});
+    return true;
+  }
+
+  atual.total++;
+  return atual.total<=30;
+}
 
 function cortar(v,max){
   const limite=max||LIMITE_TEXTO;
@@ -121,7 +149,8 @@ async function cloudflare(casos){
       temperature:0.05,
       max_tokens:1400,
       options:{rejectIfBusy:true}
-    })
+    }),
+    signal:AbortSignal.timeout(12000)
   });
 
   if(!resposta.ok)throw new Error('Cloudflare '+resposta.status);
@@ -148,7 +177,8 @@ async function groq(casos){
       response_format:{type:'json_schema',json_schema:{name:'aurora_layout',strict:true,schema:schema}},
       reasoning_effort:'medium',
       max_completion_tokens:1400
-    })
+    }),
+    signal:AbortSignal.timeout(15000)
   });
 
   if(!resposta.ok)throw new Error('Groq '+resposta.status);
@@ -199,6 +229,11 @@ function combinar(casos,principal,segunda){
 
 module.exports=async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({erro:'método não permitido'});
+  if(!mesmaOrigem(req))return res.status(403).json({erro:'origem não permitida'});
+  if(!dentroDoLimite(req))return res.status(429).json({erro:'limite temporário de análises inteligentes atingido'});
+
+  const tamanho=Buffer.byteLength(JSON.stringify(req.body||{}),'utf8');
+  if(tamanho>LIMITE_PAYLOAD)return res.status(413).json({erro:'pedido de análise grande demais'});
 
   try{
     const recebidos=req.body&&Array.isArray(req.body.casos)?req.body.casos:[];
@@ -233,6 +268,7 @@ module.exports=async function handler(req,res){
 
     const combinados=combinar(casos,principal,segunda);
     res.setHeader('Cache-Control','no-store');
+    res.setHeader('X-Content-Type-Options','nosniff');
     return res.status(200).json({
       provedor:segunda?'cloudflare+groq':'cloudflare',
       modeloPrincipal:principal.modelo,
