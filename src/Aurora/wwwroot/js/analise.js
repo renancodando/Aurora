@@ -474,7 +474,7 @@ export class AuroraAnalise{
       await definirViewport(w,alturaAtual,true);
       await espera(54);
       const r=this.analisarAtual({marcar:false});
-      const responsive=r.problemas.filter(p=>p.grupo==='responsividade');
+      const responsive=r.problemas.filter(p=>p.grupo==='responsividade'&&!p.requerIA);
       estados.push({
         largura:w,
         problemas:r.problemas.length,
@@ -499,7 +499,7 @@ export class AuroraAnalise{
         const mid=Math.round((lo+hi)/2);
         await definirViewport(mid,alturaAtual,true);
         await espera(36);
-        const qtd=this.analisarAtual({marcar:false}).problemas.filter(p=>p.grupo==='responsividade').length;
+        const qtd=this.analisarAtual({marcar:false}).problemas.filter(p=>p.grupo==='responsividade'&&!p.requerIA).length;
         if(qtd===base)lo=mid;
         else hi=mid;
       }
