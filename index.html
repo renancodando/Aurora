@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111315">
+  <meta name="description" content="AURORA — laboratório de responsividade adaptativa sem IA.">
+  <title>AURORA</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/responsividade.css">
+</head>
+<body>
+  <canvas id="ceu-atmosfera" aria-hidden="true"></canvas>
+  <canvas id="ceu-astros" aria-hidden="true"></canvas>
+
+  <main class="aurora" data-adaptive>
+    <header class="topo">
+      <div class="identidade">
+        <strong>AURORA</strong>
+        <span></span>
+        <p>Precisão para interfaces maiores.</p>
+      </div>
+
+      <nav class="etapas" aria-label="Etapas">
+        <button class="etapa ativa" data-painel="analise">Analisar</button>
+        <button class="etapa" data-painel="ajustes">Ajustar</button>
+        <button class="etapa" data-painel="exportar">Exportar</button>
+        <button class="etapa" data-painel="historico">Histórico</button>
+      </nav>
+
+      <div class="tempo-local">
+        <button id="abrir-localizacao" class="localizacao" type="button">
+          <span>⌖</span>
+          <b id="cidade-atual">Localização</b>
+          <small id="status-ceu">local</small>
+        </button>
+        <i></i>
+        <div class="relogio">
+          <b id="hora-local">--:--</b>
+          <small id="data-local">--</small>
+        </div>
+        <i></i>
+        <div class="fase-lua">
+          <canvas id="mini-lua" width="34" height="34"></canvas>
+          <span><b id="nome-lua">Lua</b><small id="percentual-lua">--%</small></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="estacao" id="estacao">
+      <aside class="rail" aria-label="Ferramentas">
+        <button class="rail-item ativo" data-secao="analise"><span>◫</span><b>Análise</b></button>
+        <button class="rail-item" data-secao="ajustes"><span>≛</span><b>Ajustes</b></button>
+        <button class="rail-item" data-secao="elementos"><span>⊞</span><b>Elementos</b></button>
+        <button class="rail-item" data-secao="comportamento"><span>✣</span><b>Comportamento</b></button>
+        <button class="rail-item" data-secao="acessibilidade"><span>⌾</span><b>Acessibilidade</b></button>
+        <button class="rail-item" data-secao="desempenho"><span>◴</span><b>Desempenho</b></button>
+        <button class="rail-item" data-secao="exportar"><span>⇱</span><b>Exportar</b></button>
+        <div class="rail-spacer"></div>
+        <div class="frase-lateral"><i></i><span>MEDIR.<br>ENTENDER.<br>CORRIGIR.</span></div>
+        <button class="rail-item compacto" id="modo-foco"><span>⌑</span><b>Modo foco</b><kbd>F2</kbd></button>
+      </aside>
+
+      <section class="centro" id="centro" data-adaptive>
+        <div class="barra-projeto">
+          <span class="rotulo">PROJETO</span>
+          <div class="entrada-projeto" id="entrada-projeto">
+            <span>▱</span>
+            <input id="campo-origem" value="Cole uma URL, selecione uma pasta ou arraste seu projeto aqui..." readonly aria-label="Projeto atual">
+            <button class="botao-texto" id="abrir-importacao" type="button">Abrir</button>
+          </div>
+        </div>
+
+        <div class="barra-visualizacao">
+          <span class="rotulo">VISUALIZAÇÃO</span>
+          <div class="seletor-dispositivo">
+            <button class="dispositivo ativo" data-device="desktop"><span>▭</span>Desktop</button>
+            <button class="dispositivo" data-device="tablet"><span>▯</span>Tablet</button>
+            <button class="dispositivo" data-device="mobile"><span>▯</span>Mobile</button>
+          </div>
+          <div class="resolucao-atual"><span></span><b id="resolucao-display">1200 × 800</b></div>
+          <label class="campo-resolucao">
+            <input id="largura-manual" type="number" min="280" max="3440" value="1200">
+            <span>×</span>
+            <input id="altura-manual" type="number" min="320" max="2160" value="800">
+          </label>
+          <button class="botao-iconico" id="recarregar-preview" title="Recarregar">↻</button>
+          <button class="botao-iconico" id="tela-cheia" title="Tela cheia">⌗</button>
+        </div>
+
+        <div class="palco" id="palco">
+          <div class="regua-y" aria-hidden="true">
+            <span style="--y:0">0</span>
+            <span style="--y:13">100</span>
+            <span style="--y:26">200</span>
+            <span style="--y:52">400</span>
+            <span style="--y:78">600</span>
+            <span style="--y:100">800</span>
+          </div>
+
+          <div class="area-trabalho">
+            <div class="moldura-viewport">
+              <span class="legenda-viewport">Viewport</span>
+              <span class="legenda-resolucao">1200 × 800 · Desktop</span>
+
+              <div class="vazio" id="estado-vazio">
+                <div class="icone-arquivo"><span>＋</span></div>
+                <h1>Solte seu projeto aqui</h1>
+                <p>Importe seu site ou interface para uma análise completa<br>de layout responsivo, estrutura e desempenho.</p>
+
+                <div class="opcoes-diretas">
+                  <label class="opcao-direta">
+                    <input id="input-zip" type="file" accept=".zip" hidden>
+                    <span>▤</span><b>ZIP</b><small>Arquivo .zip</small>
+                  </label>
+                  <label class="opcao-direta">
+                    <input id="input-pasta" type="file" webkitdirectory directory multiple hidden>
+                    <span>▱</span><b>Pasta</b><small>Selecionar pasta</small>
+                  </label>
+                  <button type="button" class="opcao-direta" data-importacao="url"><span>⌁</span><b>URL</b><small>Cole o link do projeto</small></button>
+                  <button type="button" class="opcao-direta" data-importacao="github"><span>●</span><b>GitHub</b><small>Conecte seu repositório</small></button>
+                </div>
+
+                <div class="soltar"><i></i><span>OU ARRASTE E SOLTE AQUI</span><i></i></div>
+              </div>
+
+              <div class="janela-preview" id="janela-preview" hidden>
+                <div class="viewport" id="viewport">
+                  <iframe id="preview" title="Projeto em análise" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin allow-downloads"></iframe>
+                  <div id="camada-marcacoes" class="camada-marcacoes" aria-hidden="true"></div>
+                </div>
+                <div class="alca-resize alca-direita" data-resize="x"></div>
+                <div class="alca-resize alca-baixo" data-resize="y"></div>
+                <div class="alca-resize alca-canto" data-resize="xy"></div>
+              </div>
+
+              <div class="rodape-viewport">
+                <span>◉ Pronto para analisar seu projeto</span>
+                <span>Layout · Estrutura · Responsividade · Acessibilidade · Desempenho</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="status-flutuante" id="status-flutuante" hidden>
+            <span class="ponto"></span>
+            <b id="status-texto">analisando</b>
+            <small id="status-detalhe">preparando o projeto</small>
+          </div>
+        </div>
+
+        <div class="regua" id="regua">
+          <div class="regua-linha">
+            <span class="rotulo">LARGURA DO VIEWPORT (PX)</span>
+            <div class="trilho-regua">
+              <input id="controle-largura" type="range" min="280" max="3440" value="1200" step="1" aria-label="Largura da viewport">
+              <div id="marcas-fratura" class="marcas-fratura"></div>
+              <output id="bolha-largura" class="bolha-largura">1200</output>
+            </div>
+          </div>
+          <div class="ticks" aria-hidden="true">
+            <span style="--x:0">280</span><span style="--x:2.53">360</span><span style="--x:4.17">412</span><span style="--x:11.39">640</span><span style="--x:15.44">768</span><span style="--x:23.54">1024</span><span style="--x:29.11">1200</span><span style="--x:36.71">1440</span><span style="--x:51.9">1920</span><span style="--x:72.15">2560</span><span style="--x:100">3440</span>
+          </div>
+          <div class="regua-acoes">
+            <div class="modo-analise"><span>Modo de análise</span><button class="ativo" data-modo-analise="layout">Layout</button><button data-modo-analise="responsividade">Responsividade</button><button data-modo-analise="acessibilidade">Acessibilidade</button><button data-modo-analise="desempenho">Desempenho</button></div>
+            <div class="zoom-area">
+              <button id="executar-varredura" type="button">Varredura</button>
+              <select id="zoom-preview" aria-label="Zoom"><option value="1">100%</option><option value=".85">85%</option><option value=".7">70%</option><option value=".55">55%</option></select>
+              <span>Grade <i></i></span><span>Guias <i></i></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="inspetor" id="inspetor" aria-live="polite">
+        <div class="inspector-topo">
+          <b>INSPECTOR</b><span>×</span>
+        </div>
+        <div class="abas-inspetor"><button class="ativo">Visão geral</button><button>Elementos</button><button>Métricas</button></div>
+
+        <section class="bloco diagnostico">
+          <div class="cabecalho-inspector"><span>◇</span><b>Visão geral</b></div>
+          <div class="titulo-bloco">
+            <span class="estado" id="estado-layout"></span>
+            <div><b id="titulo-layout">Aguardando projeto</b><small id="subtitulo-layout">importe um projeto para ver informações detalhadas aqui.</small></div>
+          </div>
+          <div class="linhas-esqueleto"><i></i><i></i></div>
+        </section>
+
+        <section class="bloco saude">
+          <div class="cabecalho-inspector"><span>♡</span><b>Saúde do layout</b></div>
+          <div class="medidor">
+            <div class="anel" id="anel-integridade"><b id="integridade">—</b></div>
+            <div class="saude-texto"><span>Aguardando análise</span><small>A análise de layout será exibida após o carregamento do projeto.</small></div>
+            <dl hidden>
+              <div><dt>Elementos</dt><dd id="qtd-elementos">0</dd></div>
+              <div><dt>Erros</dt><dd id="qtd-erros">0</dd></div>
+              <div><dt>Avisos</dt><dd id="qtd-avisos">0</dd></div>
+              <div><dt>Ocultos</dt><dd id="qtd-ocultos">0</dd></div>
+            </dl>
+          </div>
+          <div class="barra-vazia"></div>
+        </section>
+
+        <section class="bloco pontos" id="bloco-problemas">
+          <div class="cabecalho-inspector"><span>△</span><b>Principais problemas</b><em id="contador-pontos">0</em></div>
+          <div class="estado-inteligencia" id="estado-inteligencia"><i></i><span>IA: aguardando casos ambíguos</span></div>
+          <div id="lista-problemas" class="lista-problemas">
+            <p class="sem-dados">Os possíveis problemas de layout, responsividade e acessibilidade aparecerão aqui.</p>
+          </div>
+          <div class="linhas-esqueleto tres"><i></i><i></i><i></i></div>
+        </section>
+
+        <section class="bloco correcoes">
+          <div class="cabecalho-bloco"><div class="cabecalho-inspector"><span>⌘</span><b>Ajustes em tempo real</b></div><label class="switch"><input id="auto-ajustes" type="checkbox"><i></i></label></div>
+          <div id="lista-correcoes" class="lista-correcoes">
+            <span>Projeto não carregado</span>
+            <small>Os ajustes sugeridos aparecerão aqui durante a análise.</small>
+          </div>
+          <div class="linhas-esqueleto"><i></i><i></i></div>
+        </section>
+
+        <div class="assinatura">“Bons layouts não acontecem por acaso,<br>mas por boas ferramentas.”<span>— AURORA</span></div>
+
+        <section class="bloco saida">
+          <button class="botao-principal" id="gerar-versao" disabled>Gerar nova versão <span>→</span></button>
+          <div class="garantias"><span>original preservado</span><span><b id="conteudo-removido">0</b> conteúdo removido</span></div>
+        </section>
+      </aside>
+    </section>
+
+    <div class="ceu-funcoes" aria-hidden="true">
+      <button id="toggle-ceu"></button>
+      <button class="velocidade ativa" data-speed="1"></button>
+      <button class="velocidade" data-speed="60"></button>
+      <button class="velocidade" data-speed="600"></button>
+      <span id="condicao-clima"></span>
+      <button id="detalhes-ceu"></button>
+    </div>
+  </main>
+
+  <dialog id="dialog-importar" class="dialogo">
+    <form method="dialog" class="dialogo-caixa">
+      <button class="fechar" value="cancel" aria-label="Fechar">×</button>
+      <span class="sobrelinha">NOVO PROJETO</span>
+      <h2>O que vamos analisar?</h2>
+      <p>Seu original fica intacto. O AURORA trabalha em uma cópia.</p>
+      <div class="opcoes-importacao">
+        <label class="opcao-arquivo"><input id="input-zip-dialog" type="file" accept=".zip" hidden><b>ZIP</b><small>arquivo completo</small></label>
+        <label class="opcao-arquivo"><input id="input-pasta-dialog" type="file" webkitdirectory directory multiple hidden><b>Pasta</b><small>arquivos locais</small></label>
+        <button type="button" class="opcao-arquivo" data-importacao="url"><b>URL</b><small>link público</small></button>
+        <button type="button" class="opcao-arquivo" data-importacao="github"><b>GitHub</b><small>repo público</small></button>
+      </div>
+      <div class="importacao-texto" id="importacao-texto" hidden>
+        <input id="valor-importacao" type="url" placeholder="https://..." autocomplete="off">
+        <button id="confirmar-importacao" type="button">Importar</button>
+      </div>
+      <div class="progresso-importacao" id="progresso-importacao" hidden><i></i><span>Preparando a cópia...</span></div>
+    </form>
+  </dialog>
+
+  <dialog id="dialog-diferencas" class="dialogo dialogo-diferencas">
+    <div class="dialogo-caixa comparador">
+      <button class="fechar" id="fechar-diferencas" type="button" aria-label="Fechar">×</button>
+      <span class="sobrelinha">NOVA VERSÃO</span>
+      <h2>O que o AURORA mudou</h2>
+      <p>Compare o diagnóstico com o código gerado antes de usar a nova versão.</p>
+
+      <div class="resumo-diferencas">
+        <div><small>Problemas antes</small><b id="diff-antes">—</b></div>
+        <span>→</span>
+        <div><small>Problemas depois</small><b id="diff-depois">—</b></div>
+        <div><small>Críticos antes</small><b id="diff-criticos-antes">—</b></div>
+        <span>→</span>
+        <div><small>Críticos depois</small><b id="diff-criticos-depois">—</b></div>
+      </div>
+
+      <div class="abas-diff">
+        <button type="button" class="ativa" data-aba-diff="resumo">Correções</button>
+        <button type="button" data-aba-diff="codigo">Código</button>
+        <button type="button" data-aba-diff="arquivos">Arquivos</button>
+      </div>
+
+      <section class="painel-diff ativo" data-painel-diff="resumo">
+        <div id="lista-diferencas" class="lista-diferencas"></div>
+      </section>
+
+      <section class="painel-diff" data-painel-diff="codigo">
+        <div class="cabecalho-codigo"><span>aurora-correcoes.css</span><button id="copiar-css" type="button">Copiar CSS</button></div>
+        <pre class="codigo-diff"><code id="codigo-diferencas"></code></pre>
+      </section>
+
+      <section class="painel-diff" data-painel-diff="arquivos">
+        <div class="arquivos-diff">
+          <article><span class="arquivo-status criado">NOVO</span><div><b>aurora-correcoes.css</b><small>regras adaptativas geradas pelo AURORA</small></div></article>
+          <article><span class="arquivo-status alterado">ALTERADO</span><div><b>index.html</b><small>recebe a referência para aurora-correcoes.css</small></div></article>
+          <article><span class="arquivo-status criado">NOVO</span><div><b>aurora-relatorio.json</b><small>diagnóstico, validação e diferenças da versão</small></div></article>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="dialog-localizacao" class="dialogo pequeno">
+    <form method="dialog" class="dialogo-caixa">
+      <button class="fechar" value="cancel" aria-label="Fechar">×</button>
+      <span class="sobrelinha">LOCALIZAÇÃO</span>
+      <h2>Onde você está?</h2>
+      <p>Usamos apenas para horário e dados locais.</p>
+      <button type="button" class="botao-principal" id="usar-localizacao">Usar minha localização</button>
+      <div class="separador"><span>ou</span></div>
+      <div class="busca-local"><input id="busca-cidade" placeholder="Digite uma cidade"><button id="buscar-cidade" type="button">Buscar</button></div>
+      <div id="resultados-cidade" class="resultados-cidade"></div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
