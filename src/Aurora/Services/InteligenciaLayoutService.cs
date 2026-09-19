@@ -20,6 +20,9 @@ public sealed class InteligenciaLayoutService
 
     public async Task<object> AvaliarAsync(JsonElement pedido, CancellationToken cancellationToken)
     {
+        if (pedido.GetRawText().Length > 70_000)
+            throw new InvalidDataException("Pedido de análise grande demais.");
+
         if (!pedido.TryGetProperty("casos", out var lista) || lista.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException("Nenhum caso enviado.");
 
