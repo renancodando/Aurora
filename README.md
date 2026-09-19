@@ -11,11 +11,11 @@ Laboratório de responsividade adaptativa determinística. O AURORA procura onde
 - resize manual pelas bordas do preview
 - análise de overflow, texto cortado, imagens deformadas, área de toque e larguras rígidas
 - busca automática dos limites naturais onde o comportamento muda
-- correções sem IA com propriedades intrínsecas, medidas fluidas, media queries no limite natural e container queries quando a estrutura permite
+- correções sem IA por causa raiz, usando a menor alteração possível e media query apenas quando a ruptura exige
 - preservação da ordem do DOM e do conteúdo
 - rollback quando um ajuste cria mais problemas no estado atual
 - validação da linha responsiva completa antes de exportar
-- `aurora-responsive.css` separado do CSS original
+- `aurora-correcoes.css` separado do CSS original
 - relatório JSON junto da versão gerada
 - exportação para um novo ZIP
 - original preservado
@@ -60,12 +60,13 @@ http://localhost:5187
 ```text
 medir
 → encontrar a ruptura
+→ identificar a causa raiz
+→ agrupar sintomas descendentes
 → tentar a menor correção
 → usar o limite natural do próprio layout
-→ usar container query quando o componente precisa reagir ao espaço dele
-→ reorganizar só quando não dá para manter a composição
+→ não alterar estrutura sem evidência suficiente
 → retestar
-→ rejeitar se piorar
+→ rejeitar se não houver melhora real
 → validar a linha responsiva inteira
 → exportar uma cópia
 ```
@@ -109,10 +110,39 @@ Sem essas variáveis, o AURORA continua funcionando com o motor determinístico 
 
 No GitHub Pages a IA segura fica desativada porque não existe backend para esconder as chaves. Use a versão da Vercel para a análise inteligente.
 
+## Produção
+
+A versão de produção deve ser publicada na Vercel. O GitHub Pages serve como demonstração estática e não expõe as chaves da análise inteligente.
+
+Antes do deploy:
+
+```text
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_API_TOKEN
+GROQ_API_KEY
+```
+
+O `GROQ_API_KEY` é opcional. Sem qualquer chave de IA, o motor determinístico continua funcional e casos ambíguos são preservados.
+
+Proteções aplicadas:
+
+- SSRF bloqueado na importação por URL, inclusive após redirecionamentos e resolução DNS
+- limite de tamanho e quantidade de arquivos em ZIP/pasta
+- proteção contra ZIP bomb
+- limpeza periódica do workspace temporário
+- limite de requisições nas rotas de importação e IA
+- limite de payload e timeout nas chamadas de IA
+- cache local de projetos limpo quando um novo projeto é aberto
+- nenhum segredo enviado ao GitHub ou ao frontend
+- a IA recebe estrutura, estilos calculados e medições; não recebe o conteúdo textual bruto do projeto
+- headers HTTP de produção para reduzir framing externo, sniffing e vazamento de referência
+
+O pipeline valida .NET 10, sintaxe JavaScript, causa raiz, correção mínima e um smoke test de importação antes de aceitar a versão.
+
 ## Open-Meteo
 
 Durante o desenvolvimento o endpoint público funciona sem chave. O clima é atualizado a cada 15 minutos. Sol, Lua, fase lunar e movimento das estrelas continuam com cálculo local quando a meteorologia estiver indisponível.
 
 ## Importante
 
-Use o laboratório com projetos que você pode executar e analisar. O conteúdo importado roda localmente dentro do preview para que o AURORA consiga medir o DOM.
+Use o laboratório com projetos que você confia e pode executar. O preview precisa executar o código do projeto para medir o DOM real; portanto, não trate o AURORA como sandbox para código hostil ou desconhecido.
