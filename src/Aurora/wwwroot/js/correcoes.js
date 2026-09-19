@@ -1,210 +1,270 @@
-function bloco(seletor,regras){
-  return `${seletor}{${regras.join('')}}`;
-}
-
 function numero(v,fallback=0){
   const n=Number(v);
   return Number.isFinite(n)?n:fallback;
 }
 
-function limiteNatural(contexto){
-  const atual=numero(contexto?.largura,768);
-  const fraturas=(contexto?.fraturas||[]).map(x=>numero(x.largura,NaN)).filter(Number.isFinite).sort((a,b)=>a-b);
-  if(!fraturas.length)return Math.max(320,Math.min(1800,atual+24));
-  return fraturas.reduce((melhor,x)=>Math.abs(x-atual)<Math.abs(melhor-atual)?x:melhor,fraturas[0]);
+function seletorSeguro(sel){
+  return Boolean(sel&&sel!=='html'&&sel!=='body');
 }
 
-function seletorSeguro(sel){
-  return sel&&sel!=='html'&&sel!=='body';
+function viewportDoProblema(p,contexto){
+  return Math.round(
+    numero(p?.larguraOcorrencia,
+      numero(p?.dados?.viewport,
+        numero(contexto?.largura,0)))
+  );
+}
+
+function breakpointDoProblema(p,contexto){
+  const ultima=numero(p?.ultimaLargura,0);
+  const ocorrencia=viewportDoProblema(p,contexto);
+  const base=Math.max(ultima,ocorrencia);
+  if(base<=0)return null;
+  if(base>=3438)return null;
+  return Math.min(3440,Math.round(base+2));
+}
+
+function excessoDoProblema(p,viewport){
+  const informado=numero(p?.maiorExcesso,-1);
+  if(informado>=0)return Math.ceil(informado);
+  return Math.ceil(Math.max(
+    0,
+    numero(p?.rect?.right)-viewport,
+    -numero(p?.rect?.x)
+  ));
+}
+
+function faixaTexto(p){
+  const larguras=(p?.larguras||[]).filter(Number.isFinite).sort((a,b)=>a-b);
+  if(!larguras.length)return null;
+  if(larguras.length===1)return `${larguras[0]}px`;
+  return `${larguras[0]}–${larguras[larguras.length-1]}px`;
 }
 
 function descricaoAntes(p,contexto){
+  const viewport=viewportDoProblema(p,contexto);
+  const largura=Math.round(numero(p?.dados?.widthPx,numero(p?.rect?.width,numero(p?.dados?.largura))));
+  const espaco=Math.round(numero(p?.dados?.parentClientWidth,viewport));
+  const excesso=excessoDoProblema(p,viewport);
+  const faixa=faixaTexto(p);
+
   if(p.tipo==='overflow'){
-    const extra=Math.ceil(Math.max(0,numero(p.rect?.right)-numero(contexto?.largura),-numero(p.rect?.x)));
-    return [
-      `viewport: ${numero(contexto?.largura)}px`,
-      `largura do elemento: ${Math.round(numero(p.rect?.width))}px`,
-      `excesso aproximado: ${extra}px`
+    const linhas=[
+      `viewport onde ocorreu: ${viewport}px`,
+      `largura do elemento: ${largura}px`,
+      `espaço disponível no contêiner: ${espaco}px`,
+      `excesso aproximado: ${excesso}px`
     ];
+    if(faixa)linhas.push(`detectado na faixa: ${faixa}`);
+    if(p.afetadosDerivados)linhas.push(`${p.afetadosDerivados} sintoma(s) descendente(s) agrupado(s) nesta causa`);
+    return linhas;
   }
+
   if(p.tipo==='largura-fixa'){
-    return [
-      `width calculado: ${Math.round(numero(p.dados?.widthPx))}px`,
-      `viewport: ${numero(contexto?.largura)}px`,
-      'largura rígida podia ultrapassar o espaço disponível'
+    const linhas=[
+      `width calculado: ${largura}px`,
+      `espaço disponível: ${espaco}px`,
+      `viewport onde ocorreu: ${viewport}px`
     ];
+    if(faixa)linhas.push(`detectado na faixa: ${faixa}`);
+    return linhas;
   }
+
   if(p.tipo==='texto'){
     return [
-      `conteúdo: ${Math.round(numero(p.dados?.scrollWidth))}×${Math.round(numero(p.dados?.scrollHeight))}px`,
-      `caixa: ${Math.round(numero(p.dados?.clientWidth))}×${Math.round(numero(p.dados?.clientHeight))}px`,
-      'texto estava preso ao tamanho atual da caixa'
+      `conteúdo: ${Math.round(numero(p?.dados?.scrollWidth))}×${Math.round(numero(p?.dados?.scrollHeight))}px`,
+      `caixa: ${Math.round(numero(p?.dados?.clientWidth))}×${Math.round(numero(p?.dados?.clientHeight))}px`,
+      `viewport onde ocorreu: ${viewport}px`
     ];
   }
+
   if(p.tipo==='imagem'){
     return [
-      `proporção original: ${numero(p.dados?.natural).toFixed(3)}`,
-      `proporção exibida: ${numero(p.dados?.atual).toFixed(3)}`,
-      'a imagem podia ser deformada'
+      `proporção original: ${numero(p?.dados?.natural).toFixed(3)}`,
+      `proporção exibida: ${numero(p?.dados?.atual).toFixed(3)}`,
+      `viewport onde ocorreu: ${viewport}px`
     ];
   }
+
   return [p.detalhe||'comportamento detectado na análise'];
 }
 
 function explicacao(p){
-  if(p.tipo==='overflow')return 'Limita o elemento ao espaço do contêiner sem esconder conteúdo.';
-  if(p.tipo==='largura-fixa')return 'Troca a rigidez por uma largura segura, mantendo o tamanho original como teto.';
-  if(p.tipo==='texto')return 'Libera a altura e permite quebra de linha apenas quando o conteúdo precisa.';
-  if(p.tipo==='imagem')return 'Preserva a proporção natural da mídia dentro do espaço disponível.';
-  return 'Ajuste responsivo calculado pelo AURORA.';
+  if(p.tipo==='overflow'&&p.causaProvavel==='largura-rigida')
+    return 'Mantém o tamanho original como teto e reduz somente quando o contêiner não comporta a largura original.';
+  if(p.tipo==='overflow')
+    return 'O AURORA encontrou overflow real, mas não aplicou alteração estrutural sem evidência suficiente da causa.';
+  if(p.tipo==='largura-fixa')
+    return 'Mantém a largura original quando houver espaço e torna o elemento fluido apenas abaixo desse limite.';
+  if(p.tipo==='texto')
+    return 'Libera o conteúdo para quebrar linha e crescer em altura sem truncar texto.';
+  if(p.tipo==='imagem')
+    return 'Preserva a proporção natural da mídia e impede que ela ultrapasse o contêiner.';
+  return 'Ajuste responsivo mínimo calculado pelo AURORA.';
+}
+
+function regrasMinimas(p){
+  if(!seletorSeguro(p.seletor))return [];
+
+  if(p.tipo==='overflow'||p.tipo==='largura-fixa'){
+    const largura=numero(p?.dados?.widthPx,numero(p?.rect?.width,numero(p?.dados?.largura)));
+    const espaco=numero(p?.dados?.parentClientWidth,numero(p?.dados?.viewport));
+    const larguraRigida=
+      p.causaProvavel==='largura-rigida' ||
+      (largura>0&&espaco>0&&largura>espaco+1);
+
+    if(!larguraRigida){
+      if(p.ia?.corrigir&&largura>espaco+1){
+        return [
+          'min-inline-size:0 !important;',
+          'max-inline-size:100% !important;',
+          'box-sizing:border-box !important;'
+        ];
+      }
+      return [];
+    }
+
+    const teto=Math.max(1,Math.round(largura));
+    return [
+      'min-inline-size:0 !important;',
+      `inline-size:min(100%,${teto}px) !important;`,
+      'max-inline-size:100% !important;',
+      'box-sizing:border-box !important;'
+    ];
+  }
+
+  if(p.tipo==='texto'){
+    return [
+      'min-inline-size:0 !important;',
+      'max-block-size:none !important;',
+      'block-size:auto !important;',
+      'white-space:normal !important;',
+      'overflow-wrap:anywhere !important;'
+    ];
+  }
+
+  if(p.tipo==='imagem'){
+    return [
+      'max-inline-size:100% !important;',
+      'block-size:auto !important;',
+      'object-fit:contain;',
+      'aspect-ratio:auto;'
+    ];
+  }
+
+  return [];
+}
+
+function prioridade(p){
+  if(p.tipo==='overflow'&&p.causaProvavel==='largura-rigida')return 5;
+  if(p.tipo==='largura-fixa')return 4;
+  if(p.tipo==='texto')return 3;
+  if(p.tipo==='imagem')return 2;
+  if(p.tipo==='overflow')return 1;
+  return 0;
+}
+
+function deduplicar(problemas){
+  const mapa=new Map();
+
+  for(const p of problemas||[]){
+    if(!['responsividade',undefined].includes(p.grupo))continue;
+    if(p.resumo||p.derivado||p.ignorarCorrecao)continue;
+    if(p.requerIA&&(!p.ia||!p.ia.corrigir))continue;
+    if(!seletorSeguro(p.seletor))continue;
+
+    const chave=p.seletor;
+    const atual=mapa.get(chave);
+    if(!atual||prioridade(p)>prioridade(atual)){
+      mapa.set(chave,p);
+      continue;
+    }
+
+    if(atual&&prioridade(p)===prioridade(atual)){
+      const excessoP=numero(p.maiorExcesso);
+      const excessoAtual=numero(atual.maiorExcesso);
+      if(excessoP>excessoAtual)mapa.set(chave,p);
+    }
+  }
+
+  return [...mapa.values()];
 }
 
 function montarPlano(problemas,contexto={}){
-  const mapa=new Map();
-  const containers=new Map();
-  const itens=new Map();
+  const selecionados=deduplicar(problemas);
+  const grupos=new Map();
+  const itens=[];
+  const ignorados=[];
 
-  const garantirItem=p=>{
-    const chave=`${p.tipo}|${p.seletor}`;
-    if(!itens.has(chave)){
-      itens.set(chave,{
+  for(const p of selecionados){
+    const regras=regrasMinimas(p);
+    if(!regras.length){
+      ignorados.push({
         tipo:p.tipo,
-        titulo:p.titulo,
         seletor:p.seletor,
-        antes:descricaoAntes(p,contexto),
-        depois:[],
-        explicacao:explicacao(p)
+        titulo:p.titulo,
+        motivo:'causa insuficientemente determinada para uma alteração automática segura'
       });
-    }
-    return itens.get(chave);
-  };
-
-  const adicionar=(p,regra)=>{
-    if(!seletorSeguro(p.seletor))return;
-    if(!mapa.has(p.seletor))mapa.set(p.seletor,new Set());
-    mapa.get(p.seletor).add(regra);
-    garantirItem(p).depois.push(regra);
-  };
-
-  for(const p of problemas){
-    if(!['responsividade',undefined].includes(p.grupo))continue;
-    if(p.ignorarCorrecao)continue;
-    if(p.requerIA&&(!p.ia||!p.ia.corrigir))continue;
-
-    if(p.tipo==='overflow'||p.tipo==='largura-fixa'){
-      adicionar(p,'min-inline-size:0 !important;');
-      adicionar(p,'max-inline-size:100% !important;');
-      adicionar(p,'box-sizing:border-box !important;');
-      if(numero(p.dados?.widthPx)>0)adicionar(p,`inline-size:min(100%,${Math.round(p.dados.widthPx)}px) !important;`);
+      continue;
     }
 
-    if(p.tipo==='texto'){
-      adicionar(p,'min-inline-size:0 !important;');
-      adicionar(p,'max-block-size:none !important;');
-      adicionar(p,'block-size:auto !important;');
-      adicionar(p,'white-space:normal !important;');
-      adicionar(p,'overflow-wrap:anywhere !important;');
-      adicionar(p,'text-wrap:pretty;');
-    }
+    const bp=breakpointDoProblema(p,contexto);
+    const chave=bp===null?'global':String(bp);
+    if(!grupos.has(chave))grupos.set(chave,new Map());
+    const seletores=grupos.get(chave);
+    if(!seletores.has(p.seletor))seletores.set(p.seletor,new Set());
+    regras.forEach(r=>seletores.get(p.seletor).add(r));
 
-    if(p.tipo==='imagem'){
-      adicionar(p,'max-inline-size:100% !important;');
-      adicionar(p,'block-size:auto !important;');
-      adicionar(p,'object-fit:contain;');
-      adicionar(p,'aspect-ratio:auto;');
-    }
-
-    const pai=p.contexto?.parentSelector;
-    const display=p.contexto?.parentDisplay;
-    if(pai&&['flex','grid','inline-flex','inline-grid'].includes(display)){
-      if(!containers.has(pai))containers.set(pai,{tipo:display.includes('flex')?'flex':'grid',filhos:new Set(),fontSize:0,paddingInline:0,origens:new Set()});
-      const c=containers.get(pai);
-      if(seletorSeguro(p.seletor))c.filhos.add(p.seletor);
-      c.fontSize=Math.max(c.fontSize,numero(p.contexto?.fontSize));
-      c.paddingInline=Math.max(c.paddingInline,numero(p.contexto?.paddingInline));
-      c.origens.add(`${p.tipo}|${p.seletor}`);
-    }
+    itens.push({
+      tipo:p.tipo,
+      titulo:p.titulo,
+      seletor:p.seletor,
+      causa:p.causaProvavel||null,
+      viewport:viewportDoProblema(p,contexto),
+      breakpoint:bp,
+      antes:descricaoAntes(p,contexto),
+      depois:regras,
+      explicacao:explicacao(p),
+      afetadosDerivados:p.afetadosDerivados||0
+    });
   }
 
-  const bp=Math.round(limiteNatural(contexto));
-  const estrutural=Math.max(300,bp-96);
   const linhas=[
-    '/* AURORA · responsividade adaptativa determinística */',
-    '@layer aurora-base,aurora-fluid,aurora-container,aurora-estrutura;',
-    '@layer aurora-base{',
-    ':where(img,video,canvas,svg){max-inline-size:100%;block-size:auto;}',
-    ':where(*,::before,::after){box-sizing:border-box;}',
-    '}'
+    '/* AURORA · correções responsivas mínimas e determinísticas */',
+    '/* O original foi preservado. Cada regra abaixo corresponde a uma causa raiz validada. */'
   ];
 
-  const diretas=[];
-  for(const [sel,regras] of mapa)diretas.push(bloco(sel,[...regras]));
-  if(diretas.length){
-    linhas.push('@layer aurora-fluid{');
-    linhas.push(`@media (max-width:${bp}px){${diretas.join('')}}`);
-    linhas.push('}');
-  }
-
-  let indice=0;
-  const estruturas=[];
-
-  for(const [pai,dados] of containers){
-    indice++;
-    const nome=`aurora-c${indice}`;
-    const filhos=[...dados.filhos];
-    const paddingMax=dados.paddingInline>0?Math.max(8,Math.round(dados.paddingInline/2)):24;
-    const fonteMax=dados.fontSize>0?Math.round(dados.fontSize*100)/100:16;
-    const regraContainer=`${pai}{container-type:inline-size;container-name:${nome};min-inline-size:0;}`;
-    const regraEspaco=`@container ${nome} (max-width:${bp}px){${pai}{gap:clamp(8px,2.2cqi,24px) !important;padding-inline:clamp(8px,3cqi,${paddingMax}px) !important;}}`;
-
-    linhas.push('@layer aurora-container{');
-    linhas.push(regraContainer);
-    linhas.push(regraEspaco);
-
-    if(filhos.length){
-      linhas.push(`@container ${nome} (max-width:${bp}px){${filhos.map(sel=>bloco(sel,['min-inline-size:0 !important;','max-inline-size:100% !important;',`font-size:clamp(${Math.max(11,Math.round(fonteMax*.82))}px,3.4cqi,${fonteMax}px);`])).join('')}}`);
-    }
-    linhas.push('}');
-
-    for(const origem of dados.origens){
-      const item=itens.get(origem);
-      if(item){
-        item.depois.push(`container: ${pai} → ${nome}`);
-        item.depois.push(`gap/padding passam a responder ao espaço do componente até ${bp}px`);
-      }
-    }
-
-    if(dados.tipo==='flex'){
-      estruturas.push(`@container ${nome} (max-width:${estrutural}px){${pai}{flex-wrap:wrap !important;}${filhos.map(sel=>bloco(sel,['flex:1 1 min(100%,260px);','min-inline-size:min(100%,220px) !important;'])).join('')}}`);
-      for(const origem of dados.origens){
-        const item=itens.get(origem);
-        if(item)item.depois.push(`flex-wrap apenas abaixo de ${estrutural}px, como último recurso`);
-      }
-    }
-
-    if(dados.tipo==='grid'){
-      estruturas.push(`@container ${nome} (max-width:${estrutural}px){${pai}{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)) !important;}}`);
-      for(const origem of dados.origens){
-        const item=itens.get(origem);
-        if(item)item.depois.push(`grid auto-fit apenas abaixo de ${estrutural}px, como último recurso`);
-      }
+  const globais=grupos.get('global');
+  if(globais){
+    for(const [sel,regras] of globais){
+      linhas.push(`${sel}{${[...regras].join('')}}`);
     }
   }
 
-  if(estruturas.length){
-    linhas.push('@layer aurora-estrutura{');
-    linhas.push(...estruturas);
-    linhas.push('}');
-  }
+  const breakpoints=[...grupos.keys()]
+    .filter(k=>k!=='global')
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a,b)=>a-b);
 
-  linhas.push(`@media (max-width:${bp}px) and (orientation:portrait){:where(dialog,[role="dialog"]){max-inline-size:calc(100vi - 24px);max-block-size:calc(100vb - 24px);}}`);
-  linhas.push('@media (prefers-reduced-motion:reduce){:where(*,::before,::after){scroll-behavior:auto !important;}}');
+  for(const bp of breakpoints){
+    const seletores=grupos.get(String(bp));
+    const regras=[];
+    for(const [sel,props] of seletores){
+      regras.push(`${sel}{${[...props].join('')}}`);
+    }
+    linhas.push(`@media (max-width:${bp}px){${regras.join('')}}`);
+  }
 
   return {
-    css:linhas.join('\n'),
-    itens:[...itens.values()].map(item=>({...item,depois:[...new Set(item.depois)]})),
-    breakpoint:bp,
-    breakpointEstrutural:estrutural
+    css:itens.length?linhas.join('\n'):'',
+    itens,
+    ignorados,
+    breakpoint:breakpoints.length?Math.max(...breakpoints):null,
+    breakpointEstrutural:null,
+    estrategia:'minima',
+    causasRaiz:itens.length,
+    sintomasIgnorados:(problemas||[]).reduce((n,p)=>n+numero(p?.afetadosDerivados),0)
   };
 }
 
