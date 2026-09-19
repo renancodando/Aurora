@@ -1,4 +1,4 @@
-name: publicar GitHub Pages
+name: preparar GitHub Pages
 
 on:
   push:
@@ -9,19 +9,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: gh-pages
   cancel-in-progress: true
 
 jobs:
   publicar:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,18 +24,19 @@ jobs:
       - name: preparar site
         shell: bash
         run: |
-          mkdir -p _site
-          cp -R src/Aurora/wwwroot/. _site/
-          touch _site/.nojekyll
+          rm -rf /tmp/aurora-pages
+          mkdir -p /tmp/aurora-pages
+          cp -R src/Aurora/wwwroot/. /tmp/aurora-pages/
+          touch /tmp/aurora-pages/.nojekyll
 
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - name: publicar
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: atualizar branch gh-pages
+        shell: bash
+        run: |
+          git config user.name "renancodando"
+          git config user.email "245918264+renancodando@users.noreply.github.com"
+          git checkout --orphan gh-pages-temp
+          git rm -rf .
+          cp -R /tmp/aurora-pages/. .
+          git add -A
+          git commit -m "atualiza Aurora web"
+          git push --force origin HEAD:gh-pages
