@@ -468,6 +468,7 @@ export class AuroraAnalise{
   async varrer({definirViewport,larguraAtual,alturaAtual,progresso}){
     const bases=[280,320,360,375,390,412,430,480,540,600,640,720,768,820,900,960,1024,1120,1200,1280,1366,1440,1600,1920,2560,3440];
     const estados=[];
+    const problemasEncontrados=new Map();
 
     for(let i=0;i<bases.length;i++){
       const w=bases[i];
@@ -475,6 +476,20 @@ export class AuroraAnalise{
       await espera(54);
       const r=this.analisarAtual({marcar:false});
       const responsive=r.problemas.filter(p=>p.grupo==='responsividade'&&!p.requerIA);
+      for(const p of responsive){
+        const chave=`${p.tipo}|${p.seletor}`;
+        const existente=problemasEncontrados.get(chave);
+        const larguraExtra=Math.max(0,(p.rect?.right||0)-w,-(p.rect?.x||0));
+        if(!existente){
+          problemasEncontrados.set(chave,{...p,larguras:[w],larguraOcorrencia:w,maiorExcesso:larguraExtra});
+        }else{
+          existente.larguras.push(w);
+          if(larguraExtra>Number(existente.maiorExcesso||0)){
+            const larguras=existente.larguras;
+            problemasEncontrados.set(chave,{...p,larguras,larguraOcorrencia:w,maiorExcesso:larguraExtra});
+          }
+        }
+      }
       estados.push({
         largura:w,
         problemas:r.problemas.length,
@@ -509,7 +524,13 @@ export class AuroraAnalise{
     await definirViewport(larguraAtual,alturaAtual,true);
     await espera(60);
     const atual=this.analisarAtual({marcar:false});
-    return {estados,fraturas,atual};
+    const problemasResponsivos=[...problemasEncontrados.values()].map(p=>({
+      ...p,
+      larguras:[...new Set(p.larguras)].sort((a,b)=>a-b),
+      primeiraLargura:Math.min(...p.larguras),
+      ultimaLargura:Math.max(...p.larguras)
+    }));
+    return {estados,fraturas,atual,problemasResponsivos};
   }
 }
 
