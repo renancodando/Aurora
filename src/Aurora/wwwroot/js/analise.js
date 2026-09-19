@@ -60,6 +60,126 @@ function timingNavegacao(win){
   }catch{return null;}
 }
 
+function contextoDeOverflow(el,cs,r,win,largura){
+  const ancestrais=[];
+  const evidencias=[];
+  let atual=el.parentElement;
+  let recorteControlado=false;
+  let nomeSugereMovimento=false;
+  let score=0;
+  const padrao=/(ticker|marquee|carousel|slider|track|swiper|crawl|loop|strip|belt|roller|scroll)/i;
+
+  const nomeEl=((el.id||'')+' '+(typeof el.className==='string'?el.className:'')).trim();
+  if(padrao.test(nomeEl)){
+    nomeSugereMovimento=true;
+    score+=3;
+    evidencias.push('nome do componente sugere movimento contínuo');
+  }
+
+  const animacoesEl=typeof el.getAnimations==='function'?el.getAnimations().length:0;
+  if(animacoesEl>0){
+    score+=3;
+    evidencias.push('elemento possui animação ativa');
+  }
+  if(cs.animationName&&cs.animationName!=='none'){
+    score+=2;
+    evidencias.push('animation-name ativo: '+cs.animationName);
+  }
+  if(cs.transform&&cs.transform!=='none'){
+    score+=2;
+    evidencias.push('transform altera a posição do elemento');
+  }
+  if(cs.whiteSpace==='nowrap'){
+    score+=1;
+    evidencias.push('conteúdo usa white-space: nowrap');
+  }
+
+  for(let i=0;atual&&i<5;i++,atual=atual.parentElement){
+    const acs=win.getComputedStyle(atual);
+    const nome=((atual.id||'')+' '+(typeof atual.className==='string'?atual.className:'')).trim();
+    const info={
+      seletor:seletor(atual),
+      display:acs.display,
+      overflowX:acs.overflowX,
+      transform:acs.transform,
+      animationName:acs.animationName,
+      whiteSpace:acs.whiteSpace
+    };
+    ancestrais.push(info);
+
+    if(['hidden','clip'].includes(acs.overflowX)){
+      recorteControlado=true;
+      score+=2;
+      evidencias.push('ancestral recorta overflow horizontal');
+    }
+    if(acs.animationName&&acs.animationName!=='none'){
+      score+=1;
+      evidencias.push('ancestral possui animação');
+    }
+    if(acs.transform&&acs.transform!=='none'){
+      score+=1;
+      evidencias.push('ancestral possui transform');
+    }
+    if(padrao.test(nome)){
+      nomeSugereMovimento=true;
+      score+=2;
+      evidencias.push('ancestral sugere ticker/carrossel/track');
+    }
+  }
+
+  const irmaos=el.parentElement?el.parentElement.children.length:0;
+  if(irmaos>=4){
+    score+=1;
+    evidencias.push('sequência com '+irmaos+' elementos irmãos');
+  }
+
+  if(r.width<largura*.3&&(r.right>largura+1||r.left<-1)){
+    score+=2;
+    evidencias.push('elemento pequeno está fora da viewport por posição, não por tamanho');
+  }
+
+  const html=(el.outerHTML||'').slice(0,3200);
+  const css=[
+    'display:'+cs.display,
+    'position:'+cs.position,
+    'width:'+cs.width,
+    'max-width:'+cs.maxWidth,
+    'overflow-x:'+cs.overflowX,
+    'white-space:'+cs.whiteSpace,
+    'transform:'+cs.transform,
+    'animation-name:'+cs.animationName
+  ].join(';');
+
+  return {
+    score,
+    requerIA:score>=3,
+    contextoIA:{
+      elemento:{
+        largura:r.width,
+        altura:r.height,
+        left:r.left,
+        right:r.right,
+        transform:cs.transform,
+        animationName:cs.animationName,
+        whiteSpace:cs.whiteSpace,
+        display:cs.display,
+        position:cs.position,
+        overflowX:cs.overflowX
+      },
+      contexto:{
+        html,
+        css,
+        ancestrais,
+        irmaos,
+        animacoes:animacoesEl,
+        nomeSugereMovimento,
+        recorteControlado
+      },
+      evidencias:[...new Set(evidencias)].slice(0,12)
+    }
+  };
+}
+
 export class AuroraAnalise{
   constructor(iframe){this.iframe=iframe;this.ultimo=null;}
 
@@ -107,13 +227,18 @@ export class AuroraAnalise{
       if(foraX&&cs.position!=='fixed'&&cs.position!=='sticky'){
         const pai=el.parentElement;
         const pcs=pai?win.getComputedStyle(pai):null;
+        const ambiguidade=contextoDeOverflow(el,cs,r,win,largura);
         problemas.push({
           tipo:'overflow',
           grupo:'responsividade',
-          titulo:'Elemento fora da viewport',
+          titulo:ambiguidade.requerIA?'Overflow possivelmente intencional':'Elemento fora da viewport',
           detalhe:`${Math.ceil(Math.max(0,r.right-largura,-r.left))} px além do limite`,
           seletor:sel,
-          severidade:'critico',
+          severidade:ambiguidade.requerIA?'aviso':'critico',
+          severidadeOriginal:'critico',
+          requerIA:ambiguidade.requerIA,
+          ignorarCorrecao:ambiguidade.requerIA,
+          contextoIA:ambiguidade.contextoIA,
           rect:retangulo(r),
           dados:{largura:r.width,viewport:largura},
           contexto:{
@@ -308,8 +433,9 @@ export class AuroraAnalise{
       if(unicos.length>=120)break;
     }
 
-    const criticos=unicos.filter(p=>p.severidade==='critico').length;
-    const avisos=unicos.length-criticos;
+    const criticos=unicos.filter(p=>p.severidade==='critico'&&!p.ignorarCorrecao).length;
+    const avisos=unicos.filter(p=>p.severidade==='aviso').length;
+    const infos=unicos.filter(p=>p.severidade==='info').length;
     const penalidade=Math.min(100,criticos*14+avisos*3+(globalOverflow?12:0));
     const metricas={
       imagens,
@@ -328,6 +454,7 @@ export class AuroraAnalise{
       problemas:unicos,
       criticos,
       avisos,
+      infos,
       integridade:Math.max(0,100-penalidade),
       scrollWidth:doc.documentElement.scrollWidth,
       metricas,
