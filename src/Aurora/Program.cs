@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Aurora.Models;
 using Aurora.Services;
 using Microsoft.AspNetCore.Http.Features;
@@ -14,6 +15,7 @@ builder.Services.Configure<FormOptions>(opcoes =>
 var raizWorkspace = Path.Combine(builder.Environment.ContentRootPath, ".aurora-workspace");
 Directory.CreateDirectory(raizWorkspace);
 builder.Services.AddSingleton(new ProjetoService(raizWorkspace));
+builder.Services.AddHttpClient<InteligenciaLayoutService>();
 
 var app = builder.Build();
 
@@ -53,6 +55,13 @@ app.MapPost("/api/projetos/github", async (ImportarGitHubRequest pedido, Projeto
 {
     try { return Results.Ok(await projetos.ImportarGitHubAsync(pedido.Url, ct)); }
     catch (Exception ex) { return Results.BadRequest(new { erro = ex.Message }); }
+});
+
+app.MapPost("/api/inteligencia-layout", async (JsonElement pedido, InteligenciaLayoutService inteligencia, CancellationToken ct) =>
+{
+    try { return Results.Ok(await inteligencia.AvaliarAsync(pedido, ct)); }
+    catch (InvalidDataException ex) { return Results.BadRequest(new { erro = ex.Message }); }
+    catch (Exception ex) { return Results.Json(new { erro = ex.Message }, statusCode: 503); }
 });
 
 app.MapGet("/api/projetos/{id}", async (string id, ProjetoService projetos, CancellationToken ct) =>
