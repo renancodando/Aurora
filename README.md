@@ -95,6 +95,14 @@ CLOUDFLARE_API_TOKEN
 GROQ_API_KEY
 ```
 
+No Visual Studio, o mesmo endpoint funciona pelo ASP.NET Core. Configure os secrets locais sem gravar nenhuma chave no GitHub:
+
+```powershell
+dotnet user-secrets set "CLOUDFLARE_ACCOUNT_ID" "SEU_ACCOUNT_ID" --project src/Aurora/Aurora.csproj
+dotnet user-secrets set "CLOUDFLARE_API_TOKEN" "SEU_TOKEN" --project src/Aurora/Aurora.csproj
+dotnet user-secrets set "GROQ_API_KEY" "SUA_CHAVE" --project src/Aurora/Aurora.csproj
+```
+
 O Cloudflare é o provedor principal. O Groq é opcional, mas recomendado como segunda opinião.
 
 Sem essas variáveis, o AURORA continua funcionando com o motor determinístico e preserva casos ambíguos em vez de corrigi-los no escuro.
