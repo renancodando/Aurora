@@ -147,13 +147,13 @@ public sealed class ProjetoService
         if (!Directory.Exists(trabalho))
             throw new DirectoryNotFoundException("Projeto não encontrado.");
 
-        var cssPath = Path.Combine(trabalho, "aurora-responsive.css");
+        var cssPath = Path.Combine(trabalho, "aurora-correcoes.css");
         await File.WriteAllTextAsync(cssPath, css, Encoding.UTF8, cancellationToken);
 
         foreach (var html in Directory.EnumerateFiles(trabalho, "*.html", SearchOption.AllDirectories))
         {
             var conteudo = await File.ReadAllTextAsync(html, cancellationToken);
-            if (conteudo.Contains("aurora-responsive.css", StringComparison.OrdinalIgnoreCase))
+            if (conteudo.Contains("aurora-correcoes.css", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             var relativo = Path.GetRelativePath(Path.GetDirectoryName(html)!, cssPath).Replace('\\', '/');
@@ -179,6 +179,48 @@ public sealed class ProjetoService
 
         var json = JsonSerializer.Serialize(dados, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(Path.Combine(pasta, "aurora-relatorio.json"), json, cancellationToken);
+
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("diferencas", out var diferencas))
+            return;
+
+        var diffJson = JsonSerializer.Serialize(diferencas, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(Path.Combine(pasta, "aurora-diferencas.json"), diffJson, cancellationToken);
+
+        var markdown = new StringBuilder();
+        markdown.AppendLine("# Diferenças geradas pelo AURORA").AppendLine();
+
+        if (diferencas.TryGetProperty("itens", out var itens) && itens.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in itens.EnumerateArray())
+            {
+                var seletor = item.TryGetProperty("seletor", out var s) ? s.GetString() : null;
+                var titulo = item.TryGetProperty("titulo", out var t) ? t.GetString() : "Correção";
+                markdown.AppendLine($"## {seletor ?? titulo}").AppendLine();
+                markdown.AppendLine($"Problema: {titulo}").AppendLine();
+
+                if (item.TryGetProperty("antes", out var antes) && antes.ValueKind == JsonValueKind.Array)
+                {
+                    markdown.AppendLine("Antes:");
+                    foreach (var linha in antes.EnumerateArray())
+                        markdown.AppendLine($"- {linha.GetString()}");
+                    markdown.AppendLine();
+                }
+
+                if (item.TryGetProperty("depois", out var depois) && depois.ValueKind == JsonValueKind.Array)
+                {
+                    markdown.AppendLine("Depois:");
+                    foreach (var linha in depois.EnumerateArray())
+                        markdown.AppendLine($"- {linha.GetString()}");
+                    markdown.AppendLine();
+                }
+
+                if (item.TryGetProperty("explicacao", out var explicacao))
+                    markdown.AppendLine($"Como foi corrigido: {explicacao.GetString()}").AppendLine();
+            }
+        }
+
+        await File.WriteAllTextAsync(Path.Combine(pasta, "aurora-diferencas.md"), markdown.ToString(), Encoding.UTF8, cancellationToken);
     }
 
     public async Task RestaurarAsync(string id, CancellationToken cancellationToken)
@@ -202,9 +244,12 @@ public sealed class ProjetoService
             throw new DirectoryNotFoundException("Projeto não encontrado.");
 
         var manifesto = await ObterManifestoAsync(id, cancellationToken) ?? throw new InvalidDataException("Manifesto inválido.");
-        var relatorioOrigem = Path.Combine(pasta, "aurora-relatorio.json");
-        if (File.Exists(relatorioOrigem))
-            File.Copy(relatorioOrigem, Path.Combine(trabalho, "aurora-relatorio.json"), true);
+        foreach (var nome in new[] { "aurora-relatorio.json", "aurora-diferencas.json", "aurora-diferencas.md" })
+        {
+            var origem = Path.Combine(pasta, nome);
+            if (File.Exists(origem))
+                File.Copy(origem, Path.Combine(trabalho, nome), true);
+        }
 
         var nomeSeguro = Regex.Replace(manifesto.Nome, "[^a-zA-Z0-9._-]+", "-").Trim('-');
         if (string.IsNullOrWhiteSpace(nomeSeguro)) nomeSeguro = "projeto";
