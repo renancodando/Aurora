@@ -48,7 +48,7 @@ app.Use(async (contexto, proximo) =>
 {
     contexto.Response.Headers["X-Content-Type-Options"] = "nosniff";
     contexto.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-    contexto.Response.Headers["X-Frame-Options"] = "DENY";
+    contexto.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
     await proximo();
 });
 
