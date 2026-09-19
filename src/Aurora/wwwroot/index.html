@@ -202,7 +202,7 @@
           <div class="barra-vazia"></div>
         </section>
 
-        <section class="bloco pontos">
+        <section class="bloco pontos" id="bloco-problemas">
           <div class="cabecalho-inspector"><span>△</span><b>Principais problemas</b><em id="contador-pontos">0</em></div>
           <div id="lista-problemas" class="lista-problemas">
             <p class="sem-dados">Os possíveis problemas de layout, responsividade e acessibilidade aparecerão aqui.</p>
@@ -256,6 +256,47 @@
       </div>
       <div class="progresso-importacao" id="progresso-importacao" hidden><i></i><span>Preparando a cópia...</span></div>
     </form>
+  </dialog>
+
+  <dialog id="dialog-diferencas" class="dialogo dialogo-diferencas">
+    <div class="dialogo-caixa comparador">
+      <button class="fechar" id="fechar-diferencas" type="button" aria-label="Fechar">×</button>
+      <span class="sobrelinha">NOVA VERSÃO</span>
+      <h2>O que o AURORA mudou</h2>
+      <p>Compare o diagnóstico com o código gerado antes de usar a nova versão.</p>
+
+      <div class="resumo-diferencas">
+        <div><small>Problemas antes</small><b id="diff-antes">—</b></div>
+        <span>→</span>
+        <div><small>Problemas depois</small><b id="diff-depois">—</b></div>
+        <div><small>Críticos antes</small><b id="diff-criticos-antes">—</b></div>
+        <span>→</span>
+        <div><small>Críticos depois</small><b id="diff-criticos-depois">—</b></div>
+      </div>
+
+      <div class="abas-diff">
+        <button type="button" class="ativa" data-aba-diff="resumo">Correções</button>
+        <button type="button" data-aba-diff="codigo">Código</button>
+        <button type="button" data-aba-diff="arquivos">Arquivos</button>
+      </div>
+
+      <section class="painel-diff ativo" data-painel-diff="resumo">
+        <div id="lista-diferencas" class="lista-diferencas"></div>
+      </section>
+
+      <section class="painel-diff" data-painel-diff="codigo">
+        <div class="cabecalho-codigo"><span>aurora-correcoes.css</span><button id="copiar-css" type="button">Copiar CSS</button></div>
+        <pre class="codigo-diff"><code id="codigo-diferencas"></code></pre>
+      </section>
+
+      <section class="painel-diff" data-painel-diff="arquivos">
+        <div class="arquivos-diff">
+          <article><span class="arquivo-status criado">NOVO</span><div><b>aurora-correcoes.css</b><small>regras adaptativas geradas pelo AURORA</small></div></article>
+          <article><span class="arquivo-status alterado">ALTERADO</span><div><b>index.html</b><small>recebe a referência para aurora-correcoes.css</small></div></article>
+          <article><span class="arquivo-status criado">NOVO</span><div><b>aurora-relatorio.json</b><small>diagnóstico, validação e diferenças da versão</small></div></article>
+        </div>
+      </section>
+    </div>
   </dialog>
 
   <dialog id="dialog-localizacao" class="dialogo pequeno">
