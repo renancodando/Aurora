@@ -21,6 +21,14 @@ function breakpointDoProblema(p,contexto){
   const base=Math.max(ultima,ocorrencia);
   if(base<=0)return null;
   if(base>=3438)return null;
+
+  const fraturas=(contexto?.fraturas||[])
+    .map(x=>numero(x?.largura,NaN))
+    .filter(Number.isFinite)
+    .filter(x=>x>=base&&x<=base+180)
+    .sort((a,b)=>a-b);
+
+  if(fraturas.length)return Math.min(3440,Math.round(fraturas[0]));
   return Math.min(3440,Math.round(base+2));
 }
 
