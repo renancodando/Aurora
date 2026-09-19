@@ -1,6 +1,10 @@
 const CACHE='aurora-projetos-v2';
 const BASE_URL=new URL('./',location.href);
 const BASE_PATH=BASE_URL.pathname;
+const LIMITE_TOTAL=512*1024*1024;
+const LIMITE_ARQUIVO=128*1024*1024;
+const LIMITE_ARQUIVOS=25000;
+const LIMITE_HTML=5*1024*1024;
 
 const tipos={
   html:'text/html;charset=utf-8',htm:'text/html;charset=utf-8',css:'text/css;charset=utf-8',js:'text/javascript;charset=utf-8',mjs:'text/javascript;charset=utf-8',
@@ -52,10 +56,16 @@ function baseDoIndex(caminhos){
 }
 
 async function publicar(arquivos,nome,entrada){
+  if(arquivos.length>LIMITE_ARQUIVOS)throw new Error('O projeto possui arquivos demais.');
+  const total=arquivos.reduce((s,x)=>s+(x.blob?.size||0),0);
+  if(total>LIMITE_TOTAL)throw new Error('O projeto ultrapassa o limite seguro de 512 MB.');
+  if(arquivos.some(x=>(x.blob?.size||0)>LIMITE_ARQUIVO))throw new Error('O projeto contém um arquivo maior que 128 MB.');
+
   await garantirWorker();
   const caminhos=arquivos.map(x=>normalizar(x.path)).filter(Boolean);
   const {index,base}=baseDoIndex(caminhos);
   const id=idProjeto();
+  await caches.delete(CACHE);
   const cache=await caches.open(CACHE);
   const publicados=[];
 
@@ -85,11 +95,27 @@ async function publicar(arquivos,nome,entrada){
 
 export async function importarZipLocal(arquivo){
   if(!window.JSZip)throw new Error('O leitor de ZIP ainda não carregou.');
+  if(arquivo.size>LIMITE_TOTAL)throw new Error('O ZIP ultrapassa o limite de 512 MB.');
+
   const zip=await window.JSZip.loadAsync(arquivo);
+  const entradas=Object.entries(zip.files).filter(([path,item])=>!item.dir&&!path.startsWith('__MACOSX/'));
+  if(entradas.length>LIMITE_ARQUIVOS)throw new Error('O ZIP possui arquivos demais.');
+
+  let declarado=0;
+  for(const [,item] of entradas){
+    const tamanho=Number(item?._data?.uncompressedSize||0);
+    if(tamanho>LIMITE_ARQUIVO)throw new Error('O ZIP contém um arquivo maior que 128 MB.');
+    declarado+=tamanho;
+    if(declarado>LIMITE_TOTAL)throw new Error('O conteúdo extraído ultrapassa 512 MB.');
+  }
+
   const arquivos=[];
-  for(const [path,item] of Object.entries(zip.files)){
-    if(item.dir||path.startsWith('__MACOSX/'))continue;
-    arquivos.push({path,blob:await item.async('blob')});
+  let total=0;
+  for(const [path,item] of entradas){
+    const blob=await item.async('blob');
+    total+=blob.size;
+    if(blob.size>LIMITE_ARQUIVO||total>LIMITE_TOTAL)throw new Error('O conteúdo extraído ultrapassa o limite seguro.');
+    arquivos.push({path,blob});
   }
   return publicar(arquivos,arquivo.name,'ZIP local');
 }
@@ -97,6 +123,10 @@ export async function importarZipLocal(arquivo){
 export async function importarPastaLocal(lista){
   const arquivos=[...lista].filter(x=>x instanceof File);
   if(!arquivos.length)throw new Error('A pasta está vazia.');
+  if(arquivos.length>LIMITE_ARQUIVOS)throw new Error('A pasta possui arquivos demais.');
+  const total=arquivos.reduce((s,x)=>s+x.size,0);
+  if(total>LIMITE_TOTAL)throw new Error('A pasta ultrapassa o limite de 512 MB.');
+  if(arquivos.some(x=>x.size>LIMITE_ARQUIVO))throw new Error('A pasta contém um arquivo maior que 128 MB.');
   const raiz=(arquivos[0].webkitRelativePath||'').split('/')[0]||'projeto';
   return publicar(arquivos.map(x=>({path:x.webkitRelativePath||x.name,blob:x})),raiz,'Pasta local');
 }
@@ -174,7 +204,10 @@ export async function importarUrlLocal(url){
   try{
     const direta=await fetch(finalUrl,{mode:'cors',redirect:'follow'});
     if(!direta.ok)throw new Error();
+    const tamanho=Number(direta.headers.get('content-length')||0);
+    if(tamanho>LIMITE_HTML)throw new Error('Página grande demais.');
     html=await direta.text();
+    if(new Blob([html]).size>LIMITE_HTML)throw new Error('Página grande demais.');
     finalUrl=direta.url||finalUrl;
   }catch{
     if(location.hostname.endsWith('github.io'))throw new Error('No GitHub Pages, a importação por URL depende do CORS do site. Use ZIP, Pasta, GitHub ou abra a versão da Vercel para URLs bloqueadas.');
