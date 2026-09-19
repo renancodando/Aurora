@@ -13,7 +13,7 @@ public sealed class ProjetoService
     private readonly string _raiz;
     private readonly HttpClient _http = new(new HttpClientHandler
     {
-        AllowAutoRedirect = true,
+        AllowAutoRedirect = false,
         AutomaticDecompression = DecompressionMethods.All
     });
 
@@ -22,6 +22,7 @@ public sealed class ProjetoService
         _raiz = raiz;
         Directory.CreateDirectory(_raiz);
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Aurora/1.0");
+        _http.Timeout = TimeSpan.FromSeconds(12);
     }
 
     public string Raiz => _raiz;
@@ -82,20 +83,67 @@ public sealed class ProjetoService
 
     public async Task<ManifestoProjeto> ImportarUrlAsync(string url, CancellationToken cancellationToken)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             throw new InvalidDataException("URL inválida.");
 
-        var id = NovoId();
-        var pasta = PastaProjeto(id);
-        var original = Path.Combine(pasta, "original");
-        var trabalho = Path.Combine(pasta, "trabalho");
-        Directory.CreateDirectory(original);
+        var atual = await ValidarUrlPublicaAsync(uri, cancellationToken);
+        HttpResponseMessage? resposta = null;
 
-        var html = await _http.GetStringAsync(uri, cancellationToken);
-        html = InjetarBase(html, uri);
-        await File.WriteAllTextAsync(Path.Combine(original, "index.html"), html, Encoding.UTF8, cancellationToken);
-        CopiarDiretorio(original, trabalho);
-        return await CriarManifestoAsync(id, uri.Host, "url", cancellationToken);
+        try
+        {
+            for (var i = 0; i <= 4; i++)
+            {
+                resposta?.Dispose();
+                resposta = await _http.GetAsync(atual, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+                if (resposta.StatusCode is HttpStatusCode.MovedPermanently
+                    or HttpStatusCode.Found
+                    or HttpStatusCode.SeeOther
+                    or HttpStatusCode.TemporaryRedirect
+                    or HttpStatusCode.PermanentRedirect)
+                {
+                    if (i == 4 || resposta.Headers.Location is null)
+                        throw new InvalidDataException("Redirecionamentos demais ou inválidos.");
+
+                    var proxima = resposta.Headers.Location.IsAbsoluteUri
+                        ? resposta.Headers.Location
+                        : new Uri(atual, resposta.Headers.Location);
+
+                    atual = await ValidarUrlPublicaAsync(proxima, cancellationToken);
+                    continue;
+                }
+
+                break;
+            }
+
+            if (resposta is null || !resposta.IsSuccessStatusCode)
+                throw new InvalidDataException("Não consegui abrir essa página.");
+
+            var tipo = resposta.Content.Headers.ContentType?.MediaType ?? "";
+            if (!tipo.Contains("text/html", StringComparison.OrdinalIgnoreCase)
+                && !tipo.Contains("application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("A URL não retornou uma página HTML.");
+
+            if (resposta.Content.Headers.ContentLength is > 5_000_000)
+                throw new InvalidDataException("A página é grande demais para importação por URL.");
+
+            var html = await LerHtmlLimitadoAsync(resposta.Content, 5_000_000, cancellationToken);
+            html = InjetarBase(html, atual);
+
+            var id = NovoId();
+            var pasta = PastaProjeto(id);
+            var original = Path.Combine(pasta, "original");
+            var trabalho = Path.Combine(pasta, "trabalho");
+            Directory.CreateDirectory(original);
+
+            await File.WriteAllTextAsync(Path.Combine(original, "index.html"), html, Encoding.UTF8, cancellationToken);
+            CopiarDiretorio(original, trabalho);
+            return await CriarManifestoAsync(id, atual.Host, "url", cancellationToken);
+        }
+        finally
+        {
+            resposta?.Dispose();
+        }
     }
 
     public async Task<ManifestoProjeto> ImportarGitHubAsync(string url, CancellationToken cancellationToken)
@@ -325,6 +373,92 @@ public sealed class ProjetoService
             else File.Move(item, destino);
         }
         Directory.Delete(unica, true);
+    }
+
+    private static async Task<Uri> ValidarUrlPublicaAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            throw new InvalidDataException("Protocolo inválido.");
+
+        if (!string.IsNullOrEmpty(uri.UserInfo))
+            throw new InvalidDataException("Credenciais na URL não são permitidas.");
+
+        var host = uri.DnsSafeHost;
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".internal", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Endereço privado bloqueado.");
+
+        IPAddress[] enderecos;
+        try
+        {
+            enderecos = await Dns.GetHostAddressesAsync(host, cancellationToken);
+        }
+        catch
+        {
+            throw new InvalidDataException("Não consegui resolver o endereço.");
+        }
+
+        if (enderecos.Length == 0 || enderecos.Any(EnderecoPrivado))
+            throw new InvalidDataException("Endereço privado ou reservado bloqueado.");
+
+        return uri;
+    }
+
+    private static bool EnderecoPrivado(IPAddress endereco)
+    {
+        if (endereco.IsIPv4MappedToIPv6)
+            endereco = endereco.MapToIPv4();
+
+        if (IPAddress.IsLoopback(endereco)
+            || endereco.Equals(IPAddress.Any)
+            || endereco.Equals(IPAddress.IPv6Any)
+            || endereco.IsIPv6LinkLocal
+            || endereco.IsIPv6Multicast)
+            return true;
+
+        var bytes = endereco.GetAddressBytes();
+        if (endereco.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            var a = bytes[0];
+            var b = bytes[1];
+
+            if (a is 0 or 10 or 127) return true;
+            if (a == 100 && b is >= 64 and <= 127) return true;
+            if (a == 169 && b == 254) return true;
+            if (a == 172 && b is >= 16 and <= 31) return true;
+            if (a == 192 && b == 168) return true;
+            if (a >= 224) return true;
+            return false;
+        }
+
+        if (endereco.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            return (bytes[0] & 0xFE) == 0xFC;
+
+        return true;
+    }
+
+    private static async Task<string> LerHtmlLimitadoAsync(HttpContent conteudo, int limite, CancellationToken cancellationToken)
+    {
+        await using var origem = await conteudo.ReadAsStreamAsync(cancellationToken);
+        using var memoria = new MemoryStream();
+        var buffer = new byte[8192];
+        var total = 0;
+
+        while (true)
+        {
+            var lidos = await origem.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (lidos == 0) break;
+
+            total += lidos;
+            if (total > limite)
+                throw new InvalidDataException("A página é grande demais para importação por URL.");
+
+            await memoria.WriteAsync(buffer.AsMemory(0, lidos), cancellationToken);
+        }
+
+        return Encoding.UTF8.GetString(memoria.ToArray());
     }
 
     private static string InjetarBase(string html, Uri uri)
