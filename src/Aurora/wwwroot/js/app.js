@@ -374,7 +374,7 @@ async function persistirCorrecoes(){
 }
 
 async function validarCorrecoesCompleto(){
-  if(!$('#auto-ajustes').checked || !estado.cssCorrecao) return {aceita:true};
+  if(!estado.cssCorrecao) return {aceita:true};
   const largura=estado.largura,altura=estado.altura;
   status('validando correções','comparando a linha responsiva inteira');
   limparPreview(preview);
@@ -456,7 +456,13 @@ async function gerarVersao(){
     const analiseAntes=estado.analiseBase||estado.analise||analisador.analisarAtual();
     const fraturasAntes=[...estado.fraturas];
     const plano=estado.planoCorrecao||descreverCorrecoes(analiseAntes.problemas,{largura:estado.largura,fraturas:fraturasAntes});
-    if($('#auto-ajustes').checked&&!estado.cssCorrecao)estado.cssCorrecao=plano.css;
+    estado.planoCorrecao=plano;
+    if(!estado.cssCorrecao)estado.cssCorrecao=plano.css;
+    if(estado.cssCorrecao){
+      aplicarNoPreview(preview,estado.cssCorrecao);
+      $('#auto-ajustes').checked=true;
+      await esperar(100);
+    }
 
     const validacao=await validarCorrecoesCompleto();
     if(!validacao.aceita) throw new Error(`Correção rejeitada: ${validacao.antes.criticos} → ${validacao.depois.criticos} rupturas críticas.`);
@@ -468,7 +474,7 @@ async function gerarVersao(){
       breakpoint:plano.breakpoint,
       breakpointEstrutural:plano.breakpointEstrutural,
       itens:plano.itens,
-      css:$('#auto-ajustes').checked?estado.cssCorrecao:'',
+      css:estado.cssCorrecao||'',
       validacao
     };
     const relatorio={
@@ -477,14 +483,14 @@ async function gerarVersao(){
       analiseDepois:estado.analise,
       fraturas:estado.fraturas,
       historico:estado.historico,
-      correcoesAtivas:$('#auto-ajustes').checked,
+      correcoesAtivas:Boolean(estado.cssCorrecao),
       validacao,
       diferencas,
       geradoEm:new Date().toISOString()
     };
 
     if(estado.projeto.local){
-      await exportarProjetoLocal(estado.projeto,$('#auto-ajustes').checked?estado.cssCorrecao:'',relatorio);
+      await exportarProjetoLocal(estado.projeto,estado.cssCorrecao||'',relatorio);
     }else{
       await fetch(`/api/projetos/${estado.projeto.id}/relatorio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:relatorio})});
       const link=document.createElement('a');link.href=`/api/projetos/${estado.projeto.id}/exportar`;link.download='';document.body.appendChild(link);link.click();link.remove();
