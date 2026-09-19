@@ -88,6 +88,8 @@ function montarPlano(problemas,contexto={}){
 
   for(const p of problemas){
     if(!['responsividade',undefined].includes(p.grupo))continue;
+    if(p.ignorarCorrecao)continue;
+    if(p.requerIA&&(!p.ia||!p.ia.corrigir))continue;
 
     if(p.tipo==='overflow'||p.tipo==='largura-fixa'){
       adicionar(p,'min-inline-size:0 !important;');
