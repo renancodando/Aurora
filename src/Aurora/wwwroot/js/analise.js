@@ -38,7 +38,7 @@ function idsAncestrais(el,ids,max=12){
   return saida;
 }
 
-function consolidarCausas(problemas){
+export function consolidarCausas(problemas){
   const overflowPorNo=new Map(
     problemas
       .filter(p=>p.tipo==='overflow'&&Number.isFinite(p.nodeId))
