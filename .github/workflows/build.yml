@@ -20,9 +20,13 @@ jobs:
         shell: bash
         run: |
           node --check api/proxy-url.js
+          node --check api/inteligencia-layout.js
           node --check src/Aurora/wwwroot/aurora-sw.js
           node --input-type=module --check < src/Aurora/wwwroot/js/app.js
+          node --input-type=module --check < src/Aurora/wwwroot/js/analise.js
+          node --input-type=module --check < src/Aurora/wwwroot/js/correcoes.js
           node --input-type=module --check < src/Aurora/wwwroot/js/importacao-local.js
+          node --input-type=module --check < src/Aurora/wwwroot/js/inteligencia-layout.js
       - name: teste rápido
         shell: bash
         run: |
