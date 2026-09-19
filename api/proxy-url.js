@@ -69,11 +69,17 @@ async function validar(valor){
 
 function mesmaOrigem(req){
   const origem=req.headers.origin;
-  if(!origem)return true;
-  try{
-    const host=String(req.headers['x-forwarded-host']||req.headers.host||'').toLowerCase();
-    return new URL(origem).host.toLowerCase()===host;
-  }catch{return false;}
+  const fetchSite=String(req.headers['sec-fetch-site']||'').toLowerCase();
+  const host=String(req.headers['x-forwarded-host']||req.headers.host||'').toLowerCase();
+
+  if(fetchSite&& !['same-origin','same-site','none'].includes(fetchSite))return false;
+  if(!origem){
+    if(process.env.VERCEL==='1')return fetchSite==='same-origin'||fetchSite==='same-site';
+    return true;
+  }
+
+  try{return new URL(origem).host.toLowerCase()===host;}
+  catch{return false;}
 }
 
 function permitido(req){
