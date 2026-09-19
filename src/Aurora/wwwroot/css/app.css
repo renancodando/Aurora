@@ -277,3 +277,12 @@ body.modo-foco .estacao{grid-template-columns:minmax(0,1fr)}
 .problema.intencional i{background:var(--sucesso)}
 .problema.intencional b{color:#b9c9b8}
 .problema.intencional small{color:#8fa091}
+
+.estado-inteligencia{display:flex;align-items:center;gap:7px;margin:-1px 0 10px;padding:7px 8px;border:1px solid var(--linha);background:#141617;color:#777975;font-size:7px}
+.estado-inteligencia i{width:6px;height:6px;border-radius:50%;background:#666b67;flex:0 0 auto}
+.estado-inteligencia.analisando{color:#b8aa8e;border-color:#5e5547}
+.estado-inteligencia.analisando i{background:var(--acento);box-shadow:0 0 10px rgba(200,170,122,.28)}
+.estado-inteligencia.ativa{color:#aebead;border-color:#465348}
+.estado-inteligencia.ativa i{background:var(--sucesso)}
+.estado-inteligencia.indisponivel{color:#9a8a86;border-color:#4b3d3a}
+.estado-inteligencia.indisponivel i{background:var(--erro)}
