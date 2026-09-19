@@ -29,10 +29,13 @@ public sealed class ProjetoService
 
     public async Task<ManifestoProjeto> ImportarZipAsync(IFormFile arquivo, CancellationToken cancellationToken)
     {
+        LimparWorkspaceAntigo();
         if (arquivo.Length == 0)
             throw new InvalidDataException("O ZIP está vazio.");
         if (!arquivo.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Envie um arquivo .zip.");
+        if (arquivo.Length > 512L * 1024 * 1024)
+            throw new InvalidDataException("O ZIP ultrapassa o limite de 512 MB.");
 
         var id = NovoId();
         var pasta = PastaProjeto(id);
@@ -49,8 +52,17 @@ public sealed class ProjetoService
 
     public async Task<ManifestoProjeto> ImportarPastaAsync(IFormFileCollection arquivos, IReadOnlyList<string> caminhos, CancellationToken cancellationToken)
     {
+        LimparWorkspaceAntigo();
         if (arquivos.Count == 0)
             throw new InvalidDataException("A pasta não possui arquivos.");
+        if (arquivos.Count > 25_000)
+            throw new InvalidDataException("A pasta possui arquivos demais.");
+
+        var tamanhoTotal = arquivos.Sum(x => x.Length);
+        if (tamanhoTotal > 512L * 1024 * 1024)
+            throw new InvalidDataException("A pasta ultrapassa o limite de 512 MB.");
+        if (arquivos.Any(x => x.Length > 128L * 1024 * 1024))
+            throw new InvalidDataException("A pasta contém um arquivo maior que 128 MB.");
 
         var id = NovoId();
         var pasta = PastaProjeto(id);
@@ -83,6 +95,7 @@ public sealed class ProjetoService
 
     public async Task<ManifestoProjeto> ImportarUrlAsync(string url, CancellationToken cancellationToken)
     {
+        LimparWorkspaceAntigo();
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             throw new InvalidDataException("URL inválida.");
 
@@ -148,6 +161,7 @@ public sealed class ProjetoService
 
     public async Task<ManifestoProjeto> ImportarGitHubAsync(string url, CancellationToken cancellationToken)
     {
+        LimparWorkspaceAntigo();
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Cole a URL pública do repositório no GitHub.");
 
@@ -166,6 +180,8 @@ public sealed class ProjetoService
         var zipUrl = $"https://github.com/{owner}/{repo}/archive/refs/heads/{Uri.EscapeDataString(branch)}.zip";
         using var zipResponse = await _http.GetAsync(zipUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         zipResponse.EnsureSuccessStatusCode();
+        if (zipResponse.Content.Headers.ContentLength is > 512L * 1024 * 1024)
+            throw new InvalidDataException("O repositório compactado ultrapassa o limite de 512 MB.");
 
         var id = NovoId();
         var pasta = PastaProjeto(id);
@@ -324,6 +340,29 @@ public sealed class ProjetoService
         var json = JsonSerializer.Serialize(manifesto, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(Path.Combine(PastaProjeto(id), "manifesto.json"), json, cancellationToken);
         return manifesto;
+    }
+
+    private void LimparWorkspaceAntigo()
+    {
+        try
+        {
+            var agora = DateTime.UtcNow;
+            var diretorios = Directory.GetDirectories(_raiz)
+                .Select(caminho => new DirectoryInfo(caminho))
+                .OrderByDescending(x => x.LastWriteTimeUtc)
+                .ToList();
+
+            for (var i = 0; i < diretorios.Count; i++)
+            {
+                var antigo = agora - diretorios[i].LastWriteTimeUtc > TimeSpan.FromHours(48);
+                var excedente = i >= 40;
+                if (!antigo && !excedente) continue;
+
+                try { diretorios[i].Delete(true); }
+                catch { }
+            }
+        }
+        catch { }
     }
 
     private string PastaProjeto(string id)
